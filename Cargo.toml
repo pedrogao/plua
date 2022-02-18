@@ -1,0 +1,9 @@
+[package]
+name = "plua"
+version = "0.1.0"
+edition = "2021"
+author = "pedrogao <1312342604@qq.com>"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
