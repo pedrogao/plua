@@ -3,12 +3,12 @@
 > Simple lua interceptor implement by Rust
 > 通过 Rust 实现简单的 lua 解释器
 
-## TODO
+## TODO List
 
-- [] lua simple interceptor
-- [] lua op code
-- [] jit lua
-- [] tail recursion(尾递归)
+- [ ] lua simple interceptor
+- [ ] lua op code
+- [ ] jit lua
+- [ ] tail recursion(尾递归)
 
 ## 参考资料
 

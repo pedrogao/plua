@@ -5,18 +5,18 @@ use std::ptr;
 use dynasm::dynasm;
 use dynasmrt::{DynasmApi, DynasmLabelApi};
 
+use crate::bf::compile::{compile, optimize};
 use crate::bf::error::{Result, RuntimeError, VMError};
-use crate::bf::intercept::{compile, optimize};
 use crate::bf::opcode::BfIR;
 
 const MEMORY_SIZE: usize = 4 * 1024 * 1024;
 
 pub struct BfVM<'io> {
     code: dynasmrt::ExecutableBuffer, // 汇编流
-    start: dynasmrt::AssemblyOffset,
-    memory: Box<[u8]>, // 内存
-    input: Box<dyn Read + 'io>,
-    output: Box<dyn Write + 'io>,
+    start: dynasmrt::AssemblyOffset,  // 开始地址
+    memory: Box<[u8]>,                // 内存
+    input: Box<dyn Read + 'io>,       // 输入
+    output: Box<dyn Write + 'io>,     // 输出
 }
 
 #[inline(always)]
@@ -34,15 +34,14 @@ impl<'io> BfVM<'io> {
     ) -> Result<Self> {
         let src = std::fs::read_to_string(file_path)?;
         let mut ir = compile(&src)?;
-        drop(src);
 
         if optimized {
             optimize(&mut ir);
         }
-        let (code, start) = Self::compile(&ir)?;
-        drop(ir);
 
+        let (code, start) = Self::generate(&ir)?;
         let memory = vec![0; MEMORY_SIZE].into_boxed_slice();
+
         Ok(Self {
             code,
             start,
@@ -52,23 +51,30 @@ impl<'io> BfVM<'io> {
         })
     }
 
+    // Checks for casts of a function pointer to a numeric type except usize.
     #[allow(clippy::fn_to_numeric_cast)]
-    fn compile(code: &[BfIR]) -> Result<(dynasmrt::ExecutableBuffer, dynasmrt::AssemblyOffset)> {
+    fn generate(code: &[BfIR]) -> Result<(dynasmrt::ExecutableBuffer, dynasmrt::AssemblyOffset)> {
         let mut ops = dynasmrt::x64::Assembler::new()?;
-        let start = ops.offset();
+        let start = ops.offset(); // 开始地址
 
+        // 当作栈来使用
         let mut loops = vec![];
 
-        // this:         rdi r12
+        // 下面是生成的汇编代码，并不是直接调用：
+        // sysv64 调用约定规定 rdi, rsi, rdx, rcx 存放前四个整数参数，rax 存放返回值
+        // agr0: vm
+        // agr1: memory_start
+        // agr2: memory_end
+        // vm:         rdi r12
         // memory_start: rsi r13
         // memory_end:   rdx r14
         // ptr:          rcx r15
         dynasm!(ops
-            ; push rax
-            ; mov r12, rdi   // save this
+            ; push rax       // 保存 rax 的值
+            ; mov r12, rdi   // save vm, r12 = rdi
             ; mov r13, rsi   // save memory_start
             ; mov r14, rdx   // save memory_end
-            ; mov rcx, rsi   // ptr = memory_start
+            ; mov rcx, rsi   // ptr = memory_start, rcx = rsi
         );
 
         use BfIR::*;
@@ -135,14 +141,14 @@ impl<'io> BfVM<'io> {
         }
 
         dynasm!(ops
-            ; xor rax, rax
-            ; jmp >exit
-            ; -> overflow:
+            ; xor rax, rax // rax = 0
+            ; jmp >exit    // jmp => exit
+            ; -> overflow: // 定义 overflow
             ; mov rax, QWORD BfVM::overflow_error as _
             ; call rax
             ; jmp >exit
-            ; -> io_error:
-            ; exit:
+            ; -> io_error: // 定义 io_error
+            ; exit:       // 定义 exit
             ; pop rdx
             ; ret
         );
@@ -154,18 +160,17 @@ impl<'io> BfVM<'io> {
 
     pub fn run(&mut self) -> Result<()> {
         type RawFn = unsafe extern "sysv64" fn(
-            this: *mut BfVM<'_>,
+            vm: *mut BfVM<'_>,
             memory_start: *mut u8,
             memory_end: *const u8,
         ) -> *mut VMError;
-
+        // 将内存重新解释为函数
         let raw_fn: RawFn = unsafe { std::mem::transmute(self.code.ptr(self.start)) };
 
-        let this: *mut Self = self;
+        let vm: *mut Self = self;
         let memory_start = self.memory.as_mut_ptr();
         let memory_end = unsafe { memory_start.add(MEMORY_SIZE) };
-
-        let ret: *mut VMError = unsafe { raw_fn(this, memory_start, memory_end) };
+        let ret: *mut VMError = unsafe { raw_fn(vm, memory_start, memory_end) };
 
         if ret.is_null() {
             Ok(())
@@ -174,10 +179,11 @@ impl<'io> BfVM<'io> {
         }
     }
 
-    unsafe extern "sysv64" fn getbyte(this: *mut Self, ptr: *mut u8) -> *mut VMError {
+    // getbyte 读取字节
+    unsafe extern "sysv64" fn getbyte(vm: *mut Self, ptr: *mut u8) -> *mut VMError {
         let mut buf = [0_u8];
-        let this = &mut *this;
-        match this.input.read(&mut buf) {
+        let vm = &mut *vm;
+        match vm.input.read(&mut buf) {
             Ok(0) => {}
             Ok(1) => *ptr = buf[0],
             Err(e) => return vm_error(RuntimeError::IO(e)),
@@ -186,15 +192,17 @@ impl<'io> BfVM<'io> {
         ptr::null_mut()
     }
 
-    unsafe extern "sysv64" fn putbyte(this: *mut Self, ptr: *const u8) -> *mut VMError {
+    // putbyte 输出字节
+    unsafe extern "sysv64" fn putbyte(vm: *mut Self, ptr: *const u8) -> *mut VMError {
         let buf = std::slice::from_ref(&*ptr);
-        let this = &mut *this;
-        match this.output.write_all(buf) {
+        let vm = &mut *vm;
+        match vm.output.write_all(buf) {
             Ok(()) => ptr::null_mut(),
             Err(e) => vm_error(RuntimeError::IO(e)),
         }
     }
 
+    // overflow_error 溢出
     unsafe extern "sysv64" fn overflow_error() -> *mut VMError {
         vm_error(RuntimeError::PointerOverflow)
     }

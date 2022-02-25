@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 extern crate plua;
-use plua::bf::jit::BfVM;
+use plua::bf::vm::BfVM;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -30,7 +30,7 @@ fn main() {
     .and_then(|mut vm| vm.run());
 
     if let Err(e) = &ret {
-        eprintln!("bfjit: {}", e);
+        eprintln!("bf: {}", e);
     }
 
     std::process::exit(ret.is_err() as i32)
