@@ -7,3 +7,7 @@ author = "pedrogao <1312342604@qq.com>"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dynasm = "1.2.1"
+dynasmrt = "1.2.1"
+structopt = "0.3.26"
+thiserror = "1.0.30"

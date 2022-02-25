@@ -1,3 +1,4 @@
+mod bf;
 mod eval;
 mod lex;
 mod parse;
