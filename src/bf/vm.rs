@@ -7,7 +7,7 @@ use dynasmrt::{DynasmApi, DynasmLabelApi};
 
 use crate::bf::compile::{compile, optimize};
 use crate::bf::error::{Result, RuntimeError, VMError};
-use crate::bf::opcode::BfIR;
+use crate::bf::ir::BfIR;
 
 const MEMORY_SIZE: usize = 4 * 1024 * 1024;
 

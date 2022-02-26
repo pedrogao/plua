@@ -3,7 +3,7 @@ use std::vec;
 
 use crate::bf::error::CompileError;
 use crate::bf::error::CompileErrorKind;
-use crate::bf::opcode::BfIR;
+use crate::bf::ir::BfIR;
 
 // 将bf代码编译为ir(opcode)
 pub fn compile(src: &str) -> Result<Vec<BfIR>, CompileError> {

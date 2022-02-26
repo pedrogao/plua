@@ -8,7 +8,7 @@ use plua::bf::vm::BfVM;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    #[structopt(name = "FILE")]
+    #[structopt(name = "file")]
     file_path: PathBuf,
 
     #[structopt(short = "o", long = "optimize", help = "Optimize code")]

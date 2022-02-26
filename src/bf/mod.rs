@@ -3,4 +3,4 @@
 pub mod compile;
 pub mod vm;
 pub mod error;
-pub mod opcode;
+pub mod ir;

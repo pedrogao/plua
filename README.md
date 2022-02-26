@@ -5,7 +5,7 @@
 
 ## TODO List
 
-- [ ] lua simple interceptor
+- [x] lua simple interceptor
 - [ ] lua op code
 - [ ] jit lua
 - [ ] tail recursion(尾递归)
@@ -17,3 +17,5 @@
 - [Brainfuck JIT 虚拟机教程](https://github.com/Nugine/bfjit)
 - [cranelift-jit-demo](https://github.com/bytecodealliance/cranelift-jit-demo)
 - [jit-minimal](https://github.com/bytecodealliance/wasmtime/blob/main/cranelift/jit/examples/jit-minimal.rs)
+- [cranelift-jit-demo](https://github.com/bytecodealliance/cranelift-jit-demo)
+- [crafting interpreters](https://craftinginterpreters.com/contents.html)
