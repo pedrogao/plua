@@ -1,25 +1,33 @@
-use crate::compile::Program;
-use crate::opcode::OpCode;
+use crate::compile::{Program};
+use crate::bytecode::OpCode;
 
 // 基于虚拟机(栈机)执行字节码
-pub fn eval(prg: Program) -> i32 {
-    let mut ip: i32 = 0; // ip 寄存器
-    let mut sp: i32 = 0; // stack pointer 寄存器
+pub fn eval(prog: Program) -> i32 {
+    // ip 寄存器
+    let mut ip: i32 = 0;
+    // The frame pointer points to the location on the data stack where each function can start storing its locals.
+    let mut fp: i32 = 0;
     let mut stack: Vec<i32> = vec![]; // 栈
 
-    while ip < prg.instructions.len() as i32 {
-        match &prg.instructions[ip as usize] {
+    println!("{:#?}", prog.instructions);
+    println!("-----------------------------------");
+
+    while ip < prog.instructions.len() as i32 {
+        let op_code = &prog.instructions[ip as usize];
+        println!("ip: {}, fp: {}, op_code: {:?}", ip, fp, op_code);
+        match op_code {
             OpCode::DupPlusFP(i) => {
-                stack.push(stack[(sp + i) as usize]);
+                stack.push(stack[(fp + i) as usize]); // 复制 fp
                 ip += 1;
             }
-            OpCode::MoveMinusFP(local_offset, fp_offset) => {
-                stack[sp as usize + local_offset] = stack[(sp - (fp_offset + 4)) as usize];
+            OpCode::GetParameter(local_offset, fp_offset) => {
+                // 将函数参数拷贝到当前的frame
+                stack[fp as usize + local_offset] = stack[(fp - (fp_offset + 4)) as usize];
                 ip += 1;
             }
             OpCode::MovePlusFP(i) => {
                 let val = stack.pop().unwrap();
-                let index = sp as usize + *i;
+                let index = fp as usize + *i; // 局部变量的序号
                 // Accounts for top-level locals
                 while index >= stack.len() {
                     stack.push(0);
@@ -28,35 +36,37 @@ pub fn eval(prg: Program) -> i32 {
                 ip += 1;
             }
             OpCode::JumpIfNotZero(label) => {
-                let top = stack.pop().unwrap();
+                let top = stack.pop().unwrap(); // compare 比较入栈后，对其进行判断
                 if top == 0 {
-                    ip = prg.syms[label].location;
+                    ip = prog.syms[label].location;
                 }
                 ip += 1;
             }
             OpCode::Jump(label) => {
-                ip = prg.syms[label].location;
+                ip = prog.syms[label].location;
             }
             OpCode::Return => {
-                let ret = stack.pop().unwrap();
+                let ret = stack.pop().unwrap(); // 返回值先出栈
 
-                // Clean up the local stack
-                while sp < stack.len() as i32 {
+                // Clean up the local stack 函数返回需清理局部产生的数据
+                // 通过 fp 来清理局部变量
+                while fp < stack.len() as i32 {
                     stack.pop();
                 }
 
                 // Restore pc and fp
+                // 通过 narguments 来清理参数
                 let mut narguments = stack.pop().unwrap();
                 ip = stack.pop().unwrap();
-                sp = stack.pop().unwrap();
+                fp = stack.pop().unwrap();
 
-                // Clean up arguments
+                // Clean up arguments 清理参数
                 while narguments > 0 {
                     stack.pop();
                     narguments -= 1;
                 }
 
-                // Add back return value
+                // Add back return value 然后再入栈
                 stack.push(ret);
             }
             OpCode::Call(label, narguments) => {
@@ -71,14 +81,14 @@ pub fn eval(prg: Program) -> i32 {
                     continue;
                 }
 
-                stack.push(sp);
+                stack.push(fp);     // 保存当前fp值
                 stack.push(ip + 1); // 记住下一个指令的地址
-                stack.push(prg.syms[label].narguments as i32); // 函数参数个数
-                ip = prg.syms[label].location;
-                sp = stack.len() as i32;
+                stack.push(prog.syms[label].narguments as i32); // 函数参数个数，用来清理参数
+                ip = prog.syms[label].location;
+                fp = stack.len() as i32; // 局部变量在fp以上，所以 fp 就是函数局部变量与其它变量的分割线
 
                 // Set up space for all arguments/locals
-                let mut nlocals = prg.syms[label].nlocals; // 预分配局部变量
+                let mut nlocals = prog.syms[label].nlocals; // 预分配局部变量
                 while nlocals > 0 {
                     stack.push(0);
                     nlocals -= 1;

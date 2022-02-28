@@ -1,0 +1,25 @@
+
+.main:
+    push $10
+    call .fib
+    ret $0
+
+.fib:
+    push $2
+    less # 比较 10 < 2
+    jump_if_zero .fib_done
+
+    push $10-1
+    call .fib
+    pop -> n1
+
+    push $10-2
+    call .fib
+    pop -> n2
+
+    add n1, n2
+    pop -> n
+    ret n
+.fib_done
+    pop -> n
+    ret n

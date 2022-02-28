@@ -1,0 +1,20 @@
+1.Push the integer 3 onto the stack.
+2.Push the integer 4 onto the stack.
+3.Call the "add_fun" function, which pushes a new stack frame and jumps to the add_fun label.
+4.Add pops the two operands off the stack and pushes back the result of adding them together.
+5.Ret pop the frame off the call stack and return by setting the IP back to 3.
+6.Ret pop the last frame off the call stack and end the program.
+
+@0 = I(3)
+@1 = I(4)
+@2 = S("add_fun")
+
+.main:
+    push @0
+    push @1
+    call @2
+    ret
+
+.add_fun:
+    add
+    ret

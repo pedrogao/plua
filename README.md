@@ -19,3 +19,6 @@
 - [jit-minimal](https://github.com/bytecodealliance/wasmtime/blob/main/cranelift/jit/examples/jit-minimal.rs)
 - [cranelift-jit-demo](https://github.com/bytecodealliance/cranelift-jit-demo)
 - [crafting interpreters](https://craftinginterpreters.com/contents.html)
+- [So You Want to Build a Language VM](https://blog.subnetzero.io/post/building-language-vm-part-01/)
+- [Building a stack-based virtual machine](https://dev.to/jimsy/building-a-stack-based-virtual-machine-5gkd)
+- [Writing Interpreters in Rust: a Guide](https://rust-hosted-langs.github.io/book/introduction.html)

@@ -474,7 +474,7 @@ fn parse_expression_statement(
 fn parse_statement(raw: &[char], tokens: &[Token], index: usize) -> Option<(Statement, usize)> {
     let parsers = [
         parse_if_statement,                     // if语句
-        parse_expression_statement,   // 解析语句中的表达式(多了一个;)，可以简单理解为 statement = expression;
+        parse_expression_statement,             // 解析语句中的表达式(多了一个;)，可以简单理解为 statement = expression;
         parse_return_statement,                 // return语句
         parse_function_statement,               // 函数语句
         parse_local_statement,                  // 变量声明
