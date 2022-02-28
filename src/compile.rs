@@ -85,19 +85,14 @@ fn compile_binary_operation(
     match bop.operator.value.as_str() {
         "+" => {
             prog.instructions.push(OpCode::Add);
-            prog.write_byte(ByteCode::Add.into());
         }
         "-" => {
             prog.instructions.push(OpCode::Subtract);
-            prog.write_byte(ByteCode::Sub.into());
         }
         "<" => {
             prog.instructions.push(OpCode::LessThan);
-            prog.write_byte(ByteCode::Less.into());
         }
-        ">" => {
-            prog.write_byte(ByteCode::Greater.into());
-        }
+        ">" => {}
         _ => panic!(
             "{}",
             bop.operator
@@ -178,8 +173,8 @@ fn compile_function_declaration(
 
     for (i, param) in fd.parameters.iter().enumerate() {
         prog.instructions.push(OpCode::GetParameter( // 用于参数拷贝
-                                                    i, // 参数的序号
-                                                    narguments as i32 - (i as i32 + 1), // 拷贝的偏移
+                                                     i, // 参数的序号
+                                                     narguments as i32 - (i as i32 + 1), // 拷贝的偏移
         ));
         new_locals.insert(param.value.clone(), i as i32); // 局部变量
     }

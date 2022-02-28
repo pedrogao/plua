@@ -34,25 +34,24 @@ impl VM {
         let mut stack: Vec<Value> = vec![]; // 栈
 
         while ip < prog.chunk.len() {
-            let op = ByteCode::from(prog.chunk[ip]);
+            let op = ByteCode::Return;
             match op {
-                ByteCode::Constant => {
+                ByteCode::Constant(_) => {
                     // TODO
                     let constant = prog.read_byte(ip + 1);
                     print!("{}", prog.read_constant(constant as usize));
                     ip += 2;
                 }
-                ByteCode::Call => {
+                ByteCode::Call(_)  => {
                     // TODO 注意：在函数调用前，就必须已经把函数参数 push 入栈
                     let index = prog.read_byte(ip + 1);
                     let func_name = prog.read_label(index as usize); // 得到函数名
                     let sym = prog.syms[func_name].borrow();
                     let args_count = sym.narguments;
                     let mut locals_count = sym.nlocals;
-                    // 1. 存储 ip, bp, sp
+                    // 1. 存储 ip, bp
                     stack.push(Value::Int((ip + 1) as i32));
                     stack.push(Value::Int(bp as i32));
-                    stack.push(Value::Int(sp as i32));
                     bp = stack.len();
                     // 2. 参数，在call之前已经push到了栈中，所以将参数个数推入栈中
                     stack.push(Value::Int(args_count as i32));
@@ -65,7 +64,7 @@ impl VM {
                     sp = stack.len();
                     ip += 2;
                 }
-                ByteCode::Jump => {
+                ByteCode::Jump(_)  => {
                     let index = prog.read_byte(ip + 1);
                     ip += 2;
                 }
@@ -76,9 +75,9 @@ impl VM {
                 ByteCode::Less => {}
                 ByteCode::Print => {}
                 ByteCode::Pop => {}
-                ByteCode::GetParameter => {}
-                ByteCode::GetLocal => {}
-                ByteCode::SetLocal => {}
+                ByteCode::GetParameter(_)  => {}
+                ByteCode::GetLocal(_)  => {}
+                ByteCode::SetLocal(_)  => {}
                 ByteCode::JumpIfFalse => {}
                 ByteCode::Return => {}
                 ByteCode::Nop => {

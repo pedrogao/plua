@@ -22,3 +22,4 @@
 - [So You Want to Build a Language VM](https://blog.subnetzero.io/post/building-language-vm-part-01/)
 - [Building a stack-based virtual machine](https://dev.to/jimsy/building-a-stack-based-virtual-machine-5gkd)
 - [Writing Interpreters in Rust: a Guide](https://rust-hosted-langs.github.io/book/introduction.html)
+- [tinyvm](https://github.com/mkhan45/tinyvm)

@@ -1,5 +1,3 @@
-use num_enum::{IntoPrimitive, FromPrimitive};
-
 // 字节码
 #[derive(Debug)]
 pub enum OpCode {
@@ -30,11 +28,11 @@ pub enum OpCode {
     LessThan,
 }
 
-#[derive(Debug, Eq, PartialEq, IntoPrimitive, FromPrimitive)]
+#[derive(Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum ByteCode {
     // push constant [op, index]
-    Constant,
+    Constant(usize),
     // + [op]
     Add,
     // - [op]
@@ -50,21 +48,20 @@ pub enum ByteCode {
     // pop stack [op]
     Pop,
     // get local variable [op, index]
-    GetLocal,
+    GetLocal(usize),
     // set local variable [op, index]
-    SetLocal,
+    SetLocal(usize),
     // get function param [op, index]
-    GetParameter,
+    GetParameter(usize),
     // jump [op, index]
-    Jump,
+    Jump(String),
     // jump if top of stack is zero(false) [op, index]
     JumpIfFalse,
     // call function [op, index]
-    Call,
+    Call(String),
     // return function or script [op]
     Return,
     // nop, default bytecode [op]
-    #[num_enum(default)]
     Nop,
 }
 
