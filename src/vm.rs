@@ -1,88 +1,127 @@
-use std::borrow::Borrow;
-use std::collections::HashMap;
 use crate::bytecode::ByteCode;
-
 use crate::compile::{Program, Value};
 
 #[derive(Debug, Default)]
-pub struct VM {
-    ip: i32,
-    stack: Vec<Value>,
-    frame: Vec<Frame>,
-}
+pub struct VM {}
 
 #[derive(Debug)]
 pub struct Frame {
-    return_address: i32,
-    slots: HashMap<String, Value>,
+    stack_offset: usize,
+    ip: usize,
 }
 
 impl Frame {
-    pub fn new(ra: i32) -> Self {
+    pub fn new(stack_offset: usize, ip: usize) -> Self {
         Self {
-            return_address: ra,
-            slots: HashMap::new(),
+            stack_offset,
+            ip,
         }
     }
 }
 
 impl VM {
-    pub fn eval(&mut self, prog: Program) -> i32 {
-        let mut ip = 0; // ip
-        let mut bp = 0; // 栈(帧)底
-        let mut sp = 0; // 栈(帧)顶
-        let mut stack: Vec<Value> = vec![]; // 栈
+    pub fn eval(&self, prog: Program) -> i32 {
+        let mut stack: Vec<Value> = Vec::new();
+        let mut frames: Vec<Frame> = Vec::new();
+        let mut ip = 0;
 
-        while ip < prog.chunk.len() {
-            let op = ByteCode::Return;
+        while let Some(op) = prog.chunk.get(ip) {
+            ip += 1;
             match op {
-                ByteCode::Constant(_) => {
-                    // TODO
-                    let constant = prog.read_byte(ip + 1);
-                    print!("{}", prog.read_constant(constant as usize));
-                    ip += 2;
+                ByteCode::Noop => {}
+                ByteCode::Push(d) => stack.push(d.clone()),
+                ByteCode::Pop => {
+                    stack.pop();
                 }
-                ByteCode::Call(_)  => {
-                    // TODO 注意：在函数调用前，就必须已经把函数参数 push 入栈
-                    let index = prog.read_byte(ip + 1);
-                    let func_name = prog.read_label(index as usize); // 得到函数名
-                    let sym = prog.syms[func_name].borrow();
-                    let args_count = sym.narguments;
-                    let mut locals_count = sym.nlocals;
-                    // 1. 存储 ip, bp
-                    stack.push(Value::Int((ip + 1) as i32));
-                    stack.push(Value::Int(bp as i32));
-                    bp = stack.len();
-                    // 2. 参数，在call之前已经push到了栈中，所以将参数个数推入栈中
-                    stack.push(Value::Int(args_count as i32));
-                    // 3. 局部变量预分配
-                    while locals_count > 0 {
-                        stack.push(Value::Nil); // nil
-                        locals_count -= 1;
+                ByteCode::Add => {
+                    let (a, b) = (stack.pop(), stack.pop());
+                    stack.push(a.unwrap() + b.unwrap())
+                }
+                ByteCode::Sub => {
+                    let (a, b) = (stack.pop(), stack.pop());
+                    stack.push(b.unwrap() - a.unwrap())
+                }
+                ByteCode::Mul => {
+                    let (a, b) = (stack.pop(), stack.pop());
+                    stack.push(a.unwrap() * b.unwrap())
+                }
+                ByteCode::Div => {
+                    let (a, b) = (stack.pop(), stack.pop());
+                    stack.push(b.unwrap() / a.unwrap())
+                }
+                ByteCode::Incr => {
+                    *stack.last_mut().unwrap() += Value::Int(1);
+                }
+                ByteCode::Decr => {
+                    *stack.last_mut().unwrap() -= Value::Int(1);
+                }
+                ByteCode::Jump(p) => ip = *p,
+                ByteCode::JE(p) => {
+                    if *stack.last().unwrap() == Value::Int(0) {
+                        stack.pop();
+                        ip = *p;
                     }
-                    // 4. 设置 bp, sp的值
-                    sp = stack.len();
-                    ip += 2;
                 }
-                ByteCode::Jump(_)  => {
-                    let index = prog.read_byte(ip + 1);
-                    ip += 2;
+                ByteCode::JNE(p) => {
+                    if *stack.last().unwrap() != Value::Int(0) {
+                        stack.pop();
+                        ip = *p;
+                    }
                 }
-                ByteCode::Add => {}
-                ByteCode::Sub => {}
-                ByteCode::Equal => {}
-                ByteCode::Greater => {}
-                ByteCode::Less => {}
-                ByteCode::Print => {}
-                ByteCode::Pop => {}
-                ByteCode::GetParameter(_)  => {}
-                ByteCode::GetLocal(_)  => {}
-                ByteCode::SetLocal(_)  => {}
-                ByteCode::JumpIfFalse => {}
-                ByteCode::Return => {}
-                ByteCode::Nop => {
-                    ip += 1;
+                ByteCode::JGT(p) => {
+                    if *stack.last().unwrap() > Value::Int(0) {
+                        stack.pop();
+                        ip = *p;
+                    }
                 }
+                ByteCode::JLT(p) => {
+                    if *stack.last().unwrap() < Value::Int(0) {
+                        stack.pop();
+                        ip = *p;
+                    }
+                }
+                ByteCode::JGE(p) => {
+                    if *stack.last().unwrap() >= Value::Int(0) {
+                        stack.pop();
+                        ip = *p;
+                    }
+                }
+                ByteCode::JLE(p) => {
+                    if *stack.last().unwrap() <= Value::Int(0) {
+                        stack.pop();
+                        ip = *p;
+                    }
+                }
+                ByteCode::Get(i) => {
+                    let idx = frames.last().map_or(0, |s| s.stack_offset);
+                    stack.push(stack.get(i + idx).unwrap().clone());
+                }
+                ByteCode::Set(i) => {
+                    *stack
+                        .get_mut(i + frames.last().map_or(0, |s| s.stack_offset))
+                        .unwrap() = stack.last().unwrap().clone();
+                }
+                ByteCode::GetArg(i) => stack.push(
+                    *stack
+                        .get(frames.last().unwrap().stack_offset - 1 - i)
+                        .unwrap(),
+                ),
+                ByteCode::SetArg(i) => {
+                    let offset_i = frames.last().unwrap().stack_offset - 1 - i;
+                    let new_val = stack.last().unwrap();
+                    *stack.get_mut(offset_i).unwrap() = new_val.clone();
+                }
+                ByteCode::Print => {
+                    print!("{}", stack.last().unwrap());
+                }
+                ByteCode::Call(p) => {
+                    frames.push(Frame {
+                        stack_offset: stack.len(),
+                        ip,
+                    });
+                    ip = *p;
+                }
+                ByteCode::Ret => ip = frames.pop().unwrap().ip,
             }
         }
 
@@ -91,50 +130,38 @@ impl VM {
 }
 
 mod tests {
-    use crate::debug::debug;
-    use crate::compile::{Program, Value};
     use crate::bytecode::ByteCode;
+    use crate::compile::{Program, Value};
+    use crate::debug::debug;
+
+    use super::VM;
 
     #[test]
-    fn test_func_declare() {
+    fn test_func_call() {
         let mut prog = Program::default();
-        // function gen declare
-        // 1. 跳转到函数末尾，目前无需调用
-        let func_end = prog.write_label("func_end".to_string());
-        prog.write_byte(ByteCode::Jump.into());
-        prog.write_byte(func_end as u8);
+        prog.write_byte(ByteCode::Push(Value::Int(3)));
+        prog.write_byte(ByteCode::Push(Value::Int(2)));
+        prog.write_byte(ByteCode::Push(Value::Int(1)));
 
-        // 2. 处理函数参数, 根据bp来访问param
-        prog.write_byte(ByteCode::GetParameter.into());
-        prog.write_byte(0); // 第一个参数
+        prog.write_byte(ByteCode::Jump(7));
+        let add_mul_ip = prog.chunk.len();
+        prog.write_byte(ByteCode::Add);
+        prog.write_byte(ByteCode::Mul);
+        prog.write_byte(ByteCode::Ret);
 
-        // 3. 处理函数语句
-        let constant_index = prog.write_constant(Value::Int(2));
-        prog.write_byte(ByteCode::Constant.into());
-        prog.write_byte(constant_index as u8);
-        // 比较
-        prog.write_byte(ByteCode::Less.into());
-        prog.write_byte(ByteCode::JumpIfFalse.into());
-        // 不满足则跳到return后面
-        prog.write_byte((prog.chunk.len() + 1) as u8); // 跳过 return
-        // 满足比较，即返回，记得将结果入栈
-        prog.write_byte(ByteCode::Return.into());
+        prog.write_byte(ByteCode::Jump(11));
+        let square_ip = prog.chunk.len();
+        prog.write_byte(ByteCode::GetArg(0));
+        prog.write_byte(ByteCode::Mul);
+        prog.write_byte(ByteCode::Ret);
 
-        // 局部变量 TODO 本质是语句赋值
-        let n1_index = prog.write_label("n1".to_string());
-        prog.write_byte(ByteCode::SetLocal.into());
-        prog.write_byte(n1_index as u8);
-        // 将 n 和 1 入栈
-        prog.write_byte(ByteCode::Add.into());
-
-        let n2_index = prog.write_label("n2".to_string());
-        prog.write_byte(ByteCode::SetLocal.into());
-        prog.write_byte(n2_index as u8);
-
-        prog.write_byte(ByteCode::Add.into());
-
-        prog.write_byte(ByteCode::Return.into());
+        prog.write_byte(ByteCode::Call(add_mul_ip));
+        prog.write_byte(ByteCode::Call(square_ip));
+        prog.write_byte(ByteCode::Print);
 
         debug(&prog);
+
+        let vm = VM::default();
+        vm.eval(prog);
     }
 }

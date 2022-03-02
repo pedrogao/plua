@@ -304,6 +304,7 @@ fn interpret(program: Program) {
             }
 
             // GetArg and SetArg mirror Get and Set.
+            // 将调用的栈长度保存为 stack_offset，并将其作为标志去取参数，懂了！
             GetArg(i) => stack.push(
                 *stack
                     .0

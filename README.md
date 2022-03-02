@@ -5,12 +5,14 @@
 
 ## TODO List
 
-- [x] lua simple interceptor
-- [ ] lua op code
+- [X] interceptor
+- [ ] lex
+- [ ] parse
+- [X] byte code
 - [ ] jit lua
 - [ ] tail recursion(尾递归)
 
-## 参考资料
+## reference
 
 - [lust: Lua in Rust](https://github.com/eatonphil/lust)
 - [Writing a minimal Lua implementation with a virtual machine from scratch in Rust](https://notes.eatonphil.com/lua-in-rust.html)

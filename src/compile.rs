@@ -1,14 +1,99 @@
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::ops::{Add, AddAssign, Div, Mul, Sub, SubAssign};
 
-use crate::parse::*;
 use crate::bytecode::*;
+use crate::parse::*;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Value {
     Int(i32),
     Nil,
+}
+
+impl Add for Value {
+    type Output = Value;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match self {
+            Value::Int(i) => {
+                return if let Value::Int(j) = rhs {
+                    Value::Int(i + j)
+                } else {
+                    Value::Nil
+                }
+            }
+            Value::Nil => Value::Nil,
+        }
+    }
+}
+
+impl AddAssign for Value {
+    fn add_assign(&mut self, rhs: Self) {
+        if let (Value::Int(x), Value::Int(y)) = (self, rhs) {
+            *x += y;
+        }
+    }
+}
+
+impl Sub for Value {
+    type Output = Value;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match self {
+            Value::Int(i) => {
+                return if let Value::Int(j) = rhs {
+                    Value::Int(i - j)
+                } else {
+                    Value::Nil
+                }
+            }
+            Value::Nil => Value::Nil,
+        }
+    }
+}
+
+impl SubAssign for Value {
+    fn sub_assign(&mut self, rhs: Self) {
+        if let (Value::Int(x), Value::Int(y)) = (self, rhs) {
+            *x -= y;
+        }
+    }
+}
+
+impl Mul for Value {
+    type Output = Value;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        match self {
+            Value::Int(i) => {
+                return if let Value::Int(j) = rhs {
+                    Value::Int(i * j)
+                } else {
+                    Value::Nil
+                }
+            }
+            Value::Nil => Value::Nil,
+        }
+    }
+}
+
+impl Div for Value {
+    type Output = Value;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        match self {
+            Value::Int(i) => {
+                return if let Value::Int(j) = rhs {
+                    Value::Int(i / j)
+                } else {
+                    Value::Nil
+                }
+            }
+            Value::Nil => Value::Nil,
+        }
+    }
 }
 
 impl Display for Value {
@@ -32,7 +117,7 @@ pub struct Program {
     pub instructions: Vec<OpCode>,
     // bytecode
     // 指令流
-    pub chunk: Vec<u8>,
+    pub chunk: Vec<ByteCode>,
     // 常数
     pub constants: Vec<Value>,
     // 标签
@@ -40,14 +125,14 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn write_byte(&mut self, op: u8) {
+    pub fn write_byte(&mut self, op: ByteCode) {
         self.chunk.push(op)
     }
 
-    pub fn read_byte(&self, i: usize) -> u8 {
+    pub fn read_byte(&self, i: usize) -> &ByteCode {
         // 注意越界
         assert!(i < self.chunk.len());
-        self.chunk[i]
+        self.chunk[i].borrow()
     }
 
     pub fn write_constant(&mut self, v: Value) -> usize {
@@ -80,7 +165,7 @@ fn compile_binary_operation(
     bop: BinaryOperation,
 ) {
     // 在栈中，op 是最后入栈的
-    compile_expression(prog, raw, locals, *bop.left);  // 左边表达式
+    compile_expression(prog, raw, locals, *bop.left); // 左边表达式
     compile_expression(prog, raw, locals, *bop.right); // 右边表达式
     match bop.operator.value.as_str() {
         "+" => {
@@ -113,8 +198,7 @@ fn compile_function_call(
         compile_expression(prog, raw, locals, arg);
     }
 
-    prog.instructions
-        .push(OpCode::Call(fc.name.value, len)); // 函数调用
+    prog.instructions.push(OpCode::Call(fc.name.value, len)); // 函数调用
 }
 
 fn compile_literal(
@@ -162,8 +246,7 @@ fn compile_function_declaration(
 ) {
     // Jump to end of function to guard top-level, 函数声明时，无需调用，所以直接跳到函数末尾
     let done_label = format!("function_done_{}", prog.instructions.len());
-    prog.instructions
-        .push(OpCode::Jump(done_label.clone()));  // 完成指令
+    prog.instructions.push(OpCode::Jump(done_label.clone())); // 完成指令
 
     // 处理参数
     let mut new_locals = HashMap::<String, i32>::new();
@@ -172,9 +255,10 @@ fn compile_function_declaration(
     let narguments = fd.parameters.len(); // 参数个数
 
     for (i, param) in fd.parameters.iter().enumerate() {
-        prog.instructions.push(OpCode::GetParameter( // 用于参数拷贝
-                                                     i, // 参数的序号
-                                                     narguments as i32 - (i as i32 + 1), // 拷贝的偏移
+        prog.instructions.push(OpCode::GetParameter(
+            // 用于参数拷贝
+            i,                                  // 参数的序号
+            narguments as i32 - (i as i32 + 1), // 拷贝的偏移
         ));
         new_locals.insert(param.value.clone(), i as i32); // 局部变量
     }
@@ -216,8 +300,9 @@ fn compile_return(
 
 fn compile_if(prog: &mut Program, raw: &[char], locals: &mut HashMap<String, i32>, if_: If) {
     compile_expression(prog, raw, locals, if_.test); // 编译条件语句
-    let done_label = format!("if_else_{}", prog.instructions.len());  // 生成 label
-    prog.instructions.push(OpCode::JumpIfNotZero(done_label.clone())); // if 跳转需要一个label
+    let done_label = format!("if_else_{}", prog.instructions.len()); // 生成 label
+    prog.instructions
+        .push(OpCode::JumpIfNotZero(done_label.clone())); // if 跳转需要一个label
     for stmt in if_.body {
         compile_statement(prog, raw, locals, stmt);
     }
@@ -268,28 +353,4 @@ pub fn compile(raw: &[char], ast: Ast) -> Program {
     }
 
     prog
-}
-
-mod tests {
-    use super::*;
-    use crate::debug::debug;
-
-    #[test]
-    fn test_chunk() {
-        let mut prog = Program::default();
-        // constant 100
-        prog.write_byte(ByteCode::Constant.into());
-        let index = prog.write_constant(Value::Int(100));
-        prog.write_byte(index as u8);
-        // 在函数调用之前，需拿到函数声明的名称，然后将其加入到label和syms中
-        // call function add
-        prog.write_byte(ByteCode::Call.into());
-        let index = prog.write_label("add".to_string());
-        prog.write_byte(index as u8);
-        // jump to 0
-        prog.write_byte(ByteCode::Jump.into());
-        prog.write_byte(0); // bytecode index
-
-        debug(&prog);
-    }
 }

@@ -1,3 +1,5 @@
+use crate::compile::Value;
+
 // 字节码
 #[derive(Debug)]
 pub enum OpCode {
@@ -28,41 +30,31 @@ pub enum OpCode {
     LessThan,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-#[repr(u8)]
+#[derive(Debug)]
 pub enum ByteCode {
-    // push constant [op, index]
-    Constant(usize),
-    // + [op]
-    Add,
-    // - [op]
-    Sub,
-    // = [op]
-    Equal,
-    // > [op]
-    Greater,
-    // < [op]
-    Less,
-    // native func print [op]
-    Print,
-    // pop stack [op]
+    Push(Value),
     Pop,
-    // get local variable [op, index]
-    GetLocal(usize),
-    // set local variable [op, index]
-    SetLocal(usize),
-    // get function param [op, index]
-    GetParameter(usize),
-    // jump [op, index]
-    Jump(String),
-    // jump if top of stack is zero(false) [op, index]
-    JumpIfFalse,
-    // call function [op, index]
-    Call(String),
-    // return function or script [op]
-    Return,
-    // nop, default bytecode [op]
-    Nop,
+    Add,
+    Sub,
+    Incr,
+    Decr,
+    Mul,
+    Div,
+    Jump(usize),
+    JE(usize),
+    JNE(usize),
+    JGT(usize),
+    JLT(usize),
+    JGE(usize),
+    JLE(usize),
+    Get(usize),
+    Set(usize),
+    GetArg(usize),
+    SetArg(usize),
+    Noop,
+    Print,
+    Call(usize),
+    Ret,
 }
 
 // 符号
