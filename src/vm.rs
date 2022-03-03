@@ -1,5 +1,6 @@
 use crate::bytecode::ByteCode;
-use crate::compile::{Program, Value};
+use crate::compile::{Program};
+use crate::value::Value;
 
 #[derive(Debug, Default)]
 pub struct VM {}
@@ -131,8 +132,9 @@ impl VM {
 
 mod tests {
     use crate::bytecode::ByteCode;
-    use crate::compile::{Program, Value};
+    use crate::compile::{Program};
     use crate::debug::debug;
+    use crate::value::Value;
 
     use super::VM;
 

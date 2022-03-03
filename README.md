@@ -8,8 +8,8 @@
 - [X] interceptor
 - [ ] lex
 - [ ] parse
-- [X] byte code
-- [ ] jit lua
+- [X] bytecode
+- [ ] jit
 - [ ] tail recursion(尾递归)
 
 ## reference

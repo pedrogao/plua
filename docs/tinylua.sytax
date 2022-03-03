@@ -4,7 +4,7 @@ declaration    → funDecl
                | localDecl
                | statement ;
 
-funDecl        → "fun" function ;
+funDecl        → "function" function "end" ;
 localDecl      → "local" IDENTIFIER ( "=" expression )? ";" ;
 
 statement      → exprStmt
