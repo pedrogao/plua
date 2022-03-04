@@ -3,14 +3,69 @@
 > Simple lua interceptor implement by Rust
 > 通过 Rust 实现简单的 lua 解释器
 
-## TODO List
+## features
 
 - [X] interceptor
-- [ ] lex
-- [ ] parse
+- [X] lex
+- [X] parse
+- [ ] resolver
+- [ ] interceptor
 - [X] bytecode
+- [ ] vm
 - [ ] jit
 - [ ] tail recursion(尾递归)
+
+## sytax
+
+```
+program        → declaration* EOF ;
+
+declaration    → funDecl
+               | localDecl
+               | statement ;
+
+funDecl        → "function" functionBody "end" ;
+localDecl      → "local" IDENTIFIER ( "=" expression )? ";" ;
+
+statement      → exprStmt
+               | ifStmt
+               | printStmt
+               | returnStmt ;
+
+exprStmt       → expression ";" ;
+
+ifStmt         → "if" expression "then" block
+                 ( "else" block )? "end" ;
+                 
+printStmt      → "print" expression ";" ;
+returnStmt     → "return" expression? ";" ;
+block          →  declaration*  ;
+
+expression     → assignment ;
+assignment     → IDENTIFIER "=" assignment | logic_or ;
+
+logic_or       → logic_and ( "or" logic_and )* ;
+logic_and      → equality ( "and" equality )* ;
+equality       → comparison ( ( "!=" | "==" ) comparison )* ;
+comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term           → factor ( ( "-" | "+" ) factor )* ;
+factor         → unary ( ( "/" | "*" ) unary )* ;
+
+unary          → ( "!" | "-" ) unary | call ;
+call           → primary "(" arguments? ")" ;
+primary        → "true" | "false" | "nil"
+               | NUMBER | STRING | IDENTIFIER | "(" expression ")";
+
+functionBody   → IDENTIFIER "(" parameters? ")"  block ;
+parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
+arguments      → expression ( "," expression )* ;
+
+NUMBER         → DIGIT+ ( "." DIGIT+ )? ;
+STRING         → "\"" <any char except "\"">* "\"" ;
+IDENTIFIER     → ALPHA ( ALPHA | DIGIT )* ;
+ALPHA          → "a" ... "z" | "A" ... "Z" | "_" ;
+DIGIT          → "0" ... "9" ;
+```
 
 ## reference
 
@@ -25,3 +80,6 @@
 - [Building a stack-based virtual machine](https://dev.to/jimsy/building-a-stack-based-virtual-machine-5gkd)
 - [Writing Interpreters in Rust: a Guide](https://rust-hosted-langs.github.io/book/introduction.html)
 - [tinyvm](https://github.com/mkhan45/tinyvm)
+- [RustPython](https://github.com/RustPython/RustPython)
+- [语法格式描述规范BNF、EBNF、ABNF](https://www.jianshu.com/p/15efcb0c06c8)
+- [The Complete Syntax of Lua](http://parrot.github.io/parrot-docs0/0.4.7/html/languages/lua/doc/lua51.bnf.html)

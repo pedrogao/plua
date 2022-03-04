@@ -69,6 +69,8 @@ pub enum TokenType {
     For,
     // if
     If,
+    // then
+    Then,
     // nil
     Nil,
     // or
@@ -87,7 +89,7 @@ pub enum TokenType {
     Eof,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub typ: TokenType,
     pub raw: String,
@@ -133,8 +135,10 @@ impl Scanner {
                 ("else".to_string(), TokenType::Else),
                 ("false".to_string(), TokenType::False),
                 ("function".to_string(), TokenType::Function),
+                ("end".to_string(), TokenType::End),
                 ("for".to_string(), TokenType::For),
                 ("if".to_string(), TokenType::If),
+                ("then".to_string(), TokenType::Then),
                 ("nil".to_string(), TokenType::Nil),
                 ("or".to_string(), TokenType::Or),
                 ("print".to_string(), TokenType::Print),

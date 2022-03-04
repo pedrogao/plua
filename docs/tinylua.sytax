@@ -8,23 +8,18 @@ funDecl        → "function" function "end" ;
 localDecl      → "local" IDENTIFIER ( "=" expression )? ";" ;
 
 statement      → exprStmt
-               | forStmt
                | ifStmt
                | printStmt
-               | returnStmt
-               | whileStmt
-               | block ;
+               | returnStmt ;
 
 exprStmt       → expression ";" ;
-forStmt        → "for" "(" ( localDecl | exprStmt | ";" )
-                           expression? ";"
-                           expression? ")" statement ;
-ifStmt         → "if" "(" expression ")" statement
-                 ( "else" statement )? ;
+
+ifStmt         → "if" expression "then" block
+                 ( "else" block )? "end" ;
+
 printStmt      → "print" expression ";" ;
 returnStmt     → "return" expression? ";" ;
-whileStmt      → "while" "(" expression ")" statement ;
-block          → "{" declaration* "}" ;
+block          →  declaration*  ;
 
 expression     → assignment ;
 assignment     → IDENTIFIER "=" assignment | logic_or ;
@@ -41,7 +36,7 @@ call           → primary "(" arguments? ")" ;
 primary        → "true" | "false" | "nil"
                | NUMBER | STRING | IDENTIFIER | "(" expression ")";
 
-function       → IDENTIFIER "(" parameters? ")" block ;
+function       → IDENTIFIER "(" parameters? ")"  block ;
 parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 arguments      → expression ( "," expression )* ;
 

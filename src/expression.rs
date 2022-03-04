@@ -1,4 +1,14 @@
+use crate::scanner::Token;
+use crate::value::Value;
+
 // Expr 表达式 trait
-pub trait Expr {
-    fn visit_expr(&self) -> String;
+#[derive(Debug)]
+pub enum Expr {
+    Call(Box<Expr>, Token, Vec<Expr>),
+    Unary(Token, Box<Expr>),
+    Variable(Token),
+    Assign(Token, Box<Expr>),
+    Binary(Box<Expr>, Token, Box<Expr>),
+    Literal(Value),
+    None,
 }
