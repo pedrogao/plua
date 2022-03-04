@@ -39,6 +39,18 @@ pub fn debug(prog: &Program) {
                 print!("{:16}", "Div");
                 print!("\n");
             }
+            ByteCode::Greater => {
+                print!("{:16}", "Greater");
+                print!("\n");
+            }
+            ByteCode::Less => {
+                print!("{:16}", "Less");
+                print!("\n");
+            }
+            ByteCode::EqualEqual => {
+                print!("{:16}", "Equal");
+                print!("\n");
+            }
             ByteCode::Jump(i) => {
                 print!("{:16} '{:04}", "Jump", i);
                 print!("'\n");

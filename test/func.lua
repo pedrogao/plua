@@ -1,6 +1,5 @@
 function fib(n)
    if n < 2 then
-      n = n + 1
       return n;
    end
 

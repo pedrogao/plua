@@ -10,5 +10,6 @@ pub enum Stmt {
     FunctionStmt(Token, Vec<Token>, Vec<Stmt>),
     ReturnStmt(Token, Expr),
     Expression(Expr),
+    Block(Vec<Stmt>),
     None,
 }

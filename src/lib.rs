@@ -16,3 +16,4 @@ pub mod statement;
 pub mod expression;
 pub mod resolver;
 pub mod interceptor;
+pub mod emitter;

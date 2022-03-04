@@ -70,7 +70,6 @@ impl Parser {
         if self.match_token(TokenType::Return) {
             return self.return_statement();
         }
-        // TODO 增加 block 的识别
         self.expression_statement()
     }
 
@@ -294,7 +293,7 @@ mod tests {
         let result = parser.parse();
         assert_eq!(result.is_err(), false);
         println!("{:#?}", result.as_ref().unwrap());
-        assert_eq!(result.unwrap().len(), 2);
+        assert_eq!(result.unwrap().len(), 1);
     }
 
     #[test]

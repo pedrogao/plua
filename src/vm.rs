@@ -56,6 +56,21 @@ impl VM {
                 ByteCode::Decr => {
                     *stack.last_mut().unwrap() -= Value::Int(1);
                 }
+                ByteCode::Greater => {
+                    let (a, b) = (stack.pop(), stack.pop());
+                    let b = a.unwrap() > b.unwrap();
+                    stack.push(Value::Int(b as i32));
+                }
+                ByteCode::Less => {
+                    let (a, b) = (stack.pop(), stack.pop());
+                    let b = a.unwrap() < b.unwrap();
+                    stack.push(Value::Int(b as i32));
+                }
+                ByteCode::EqualEqual => {
+                    let (a, b) = (stack.pop(), stack.pop());
+                    let b = a.unwrap() == b.unwrap();
+                    stack.push(Value::Int(b as i32));
+                }
                 ByteCode::Jump(p) => ip = *p,
                 ByteCode::JE(p) => {
                     if *stack.last().unwrap() == Value::Int(0) {
