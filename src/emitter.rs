@@ -29,10 +29,11 @@ impl Emitter {
             Stmt::LocalStmt(name, init) => self.emit_local_stmt(name, init)?,
             Stmt::FunctionStmt(name, params, body)
             => self.emit_func_stmt(name, params, body)?,
-            Stmt::ReturnStmt(keyword, value) => self.emit_return_stmt(keyword, value)?,
+            Stmt::ReturnStmt(keyword, value)
+            => self.emit_return_stmt(keyword, value)?,
             Stmt::Expression(expr) => self.emit_expr(expr)?,
             Stmt::Block(stmts) => self.emit_block(stmts)?,
-            Stmt::None => self.emit_nop()?,
+            Stmt::None => /*self.emit_nop()?*/{}
         }
 
         Ok(())
@@ -132,6 +133,8 @@ impl Emitter {
             TokenType::Less => self.bytecodes.push(ByteCode::Less),
             TokenType::Plus => self.bytecodes.push(ByteCode::Add),
             TokenType::Minus => self.bytecodes.push(ByteCode::Sub),
+            TokenType::Star => self.bytecodes.push(ByteCode::Mul),
+            TokenType::Slash => self.bytecodes.push(ByteCode::Div),
             _ => {
                 return Err(format!("{:?} operator not support", operator.typ));
             }

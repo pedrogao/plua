@@ -219,4 +219,38 @@ mod tests {
         let vm = VM::default();
         vm.eval(chunk.as_ref());
     }
+
+    #[test]
+    fn test_emit_mul() {
+        let source = r#"
+        function mul(n)
+          local n1 = n + 1 * 4 / 2;
+          return n1;
+        end
+
+        print(mul(4));
+        "#;
+
+        let mut scanner = Scanner::new(source.to_string());
+        let tokens = scanner.scan_tokens();
+        println!("{:#?}", tokens.as_ref().unwrap());
+        assert_eq!(tokens.as_ref().unwrap().len(), 29);
+
+        let mut parser = Parser::new(tokens.unwrap().clone());
+        let result = parser.parse();
+        assert_eq!(result.is_err(), false);
+        println!("{:#?}", result.as_ref().unwrap());
+        assert_eq!(result.as_ref().unwrap().len(), 2);
+
+        let mut emitter = Emitter::default();
+        let r = emitter.emit(result.as_ref().unwrap());
+        assert_eq!(r.is_err(), false);
+        assert_eq!(r.as_ref().unwrap().len(), 12);
+        println!("{:#?}", r.as_ref().unwrap());
+        debug(r.as_ref().unwrap());
+
+        let chunk = r.unwrap();
+        let vm = VM::default();
+        vm.eval(chunk.as_ref());
+    }
 }
