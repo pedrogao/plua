@@ -1,12 +1,11 @@
 use crate::bytecode::ByteCode;
-use crate::compile::Program;
 
 // 输出字节码详细信息
-pub fn debug(prog: &Program) {
+pub fn debug(chunk: &Vec<ByteCode>) {
     let mut offset = 0;
-    while offset < prog.chunk.len() {
+    while offset < chunk.len() {
         print!("{:04} ", offset);
-        match prog.chunk[offset] {
+        match chunk[offset] {
             ByteCode::Push(d) => {
                 print!("{:16} '{}", "Push", d);
                 print!("'\n");

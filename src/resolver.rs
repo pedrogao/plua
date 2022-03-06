@@ -66,8 +66,8 @@ impl Resolver {
         Ok(())
     }
 
-    fn resolve_call_expr(&mut self, callee: &Box<Expr>, paren: &Token,
-                         arguments: &Vec<Expr>) -> Result<(), String> {
+    fn resolve_call_expr(&mut self, callee: &Box<Expr>, _paren: &Token,
+                         _arguments: &Vec<Expr>) -> Result<(), String> {
         self.resolve_expr(callee.as_ref())?;
         Ok(())
     }

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::process::id;
 
 use crate::bytecode::ByteCode;
 use crate::expression::Expr;
@@ -9,6 +8,7 @@ use crate::value::Value;
 
 #[derive(Default)]
 pub struct Emitter {
+    globals: HashMap<String, usize>,
     scopes: Vec<HashMap<String, usize>>,
     bytecodes: Vec<ByteCode>,
 }
@@ -46,8 +46,8 @@ impl Emitter {
     }
 
     fn emit_return_stmt(&mut self, _keyword: &Token, value: &Expr) -> Result<(), String> {
-        self.bytecodes.push(ByteCode::Ret);
         self.emit_expr(value)?;
+        self.bytecodes.push(ByteCode::Ret);
         Ok(())
     }
 
@@ -55,13 +55,14 @@ impl Emitter {
                       body: &Vec<Stmt>) -> Result<(), String> {
         let idx = self.bytecodes.len();
         self.bytecodes.push(ByteCode::Jump(0));
+        self.define_func(name.raw.as_str(), self.bytecodes.len());
         self.begin_scope();
-        let mut i = 0;
+        // let mut i = 0;
         for param in params {
-            self.bytecodes.push(ByteCode::SetArg(i));
+            // self.bytecodes.push(ByteCode::SetArg(i));
             let idx = self.scopes.last().unwrap().len();
             self.define(param.raw.as_str(), idx);
-            i += 1;
+            // i += 1;
         }
         for stmt in body {
             self.emit_stmt(stmt)?;
@@ -83,8 +84,19 @@ impl Emitter {
     fn emit_if_stmt(&mut self, condition: &Expr, then_branch: &Stmt,
                     else_branch: &Stmt) -> Result<(), String> {
         self.emit_expr(condition)?;
+        let then_jmp = self.bytecodes.len();
+        self.bytecodes.push(ByteCode::JE(0));
+        // self.bytecodes.push(ByteCode::Pop);
+
         self.emit_stmt(then_branch)?;
+        let else_jmp = self.bytecodes.len();
+        self.bytecodes.push(ByteCode::Jump(0));
+
+        self.bytecodes[then_jmp] = ByteCode::JE(self.bytecodes.len());
+        // self.bytecodes.push(ByteCode::Pop);
+
         self.emit_stmt(else_branch)?;
+        self.bytecodes[else_jmp] = ByteCode::Jump(self.bytecodes.len());
         Ok(())
     }
 
@@ -118,6 +130,8 @@ impl Emitter {
             TokenType::Equal => self.bytecodes.push(ByteCode::EqualEqual),
             TokenType::Greater => self.bytecodes.push(ByteCode::Greater),
             TokenType::Less => self.bytecodes.push(ByteCode::Less),
+            TokenType::Plus => self.bytecodes.push(ByteCode::Add),
+            TokenType::Minus => self.bytecodes.push(ByteCode::Sub),
             _ => {
                 return Err(format!("{:?} operator not support", operator.typ));
             }
@@ -125,7 +139,7 @@ impl Emitter {
         Ok(())
     }
 
-    fn emit_assign(&mut self, name: &Token, value: &Expr) -> Result<(), String> {
+    fn emit_assign(&mut self, _name: &Token, _value: &Expr) -> Result<(), String> {
         Ok(())
     }
 
@@ -135,20 +149,36 @@ impl Emitter {
         Ok(())
     }
 
-    fn emit_unary(&mut self, operator: &Token, right: &Expr) -> Result<(), String> {
+    fn emit_unary(&mut self, _operator: &Token, _right: &Expr) -> Result<(), String> {
         Ok(())
     }
 
-    fn emit_call(&mut self, callee: &Expr, paren: &Token,
+    fn emit_call(&mut self, callee: &Expr, _paren: &Token,
                  args: &Vec<Expr>) -> Result<(), String> {
-
-        self.bytecodes.push(ByteCode::Call(1));
+        // call 之前得把参数入栈
+        for expr in args {
+            self.emit_expr(expr)?;
+        }
+        if let Expr::Variable(token) = callee {
+            let idx = self.get_func(token.raw.as_str());
+            self.bytecodes.push(ByteCode::Call(idx));
+        } else {
+            return Err(format!("only function call allowed"));
+        }
         Ok(())
     }
 
     fn emit_nop(&mut self) -> Result<(), String> {
         self.bytecodes.push(ByteCode::Noop);
         Ok(())
+    }
+
+    fn define_func(&mut self, name: &str, idx: usize) {
+        self.globals.insert(name.to_string(), idx);
+    }
+
+    fn get_func(&self, name: &str) -> usize {
+        *self.globals.get(name).unwrap()
     }
 
     fn define(&mut self, name: &str, idx: usize) {
@@ -168,6 +198,7 @@ impl Emitter {
 }
 
 mod tests {
+    use crate::debug::debug;
     use crate::emitter::Emitter;
     use crate::parser::Parser;
     use crate::scanner::Scanner;
@@ -202,6 +233,8 @@ mod tests {
         let mut emitter = Emitter::default();
         let r = emitter.emit(result.as_ref().unwrap());
         assert_eq!(r.is_err(), false);
-        assert_eq!(r.unwrap().len(), 10);
+        assert_eq!(r.as_ref().unwrap().len(), 23);
+        println!("{:#?}", r.as_ref().unwrap());
+        debug(r.as_ref().unwrap());
     }
 }

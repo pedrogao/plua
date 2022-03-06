@@ -1,5 +1,4 @@
 use crate::bytecode::ByteCode;
-use crate::compile::{Program};
 use crate::value::Value;
 
 #[derive(Debug, Default)]
@@ -21,12 +20,12 @@ impl Frame {
 }
 
 impl VM {
-    pub fn eval(&self, prog: Program) -> i32 {
+    pub fn eval(&self, chunk: &Vec<ByteCode>) -> i32 {
         let mut stack: Vec<Value> = Vec::new();
         let mut frames: Vec<Frame> = Vec::new();
         let mut ip = 0;
 
-        while let Some(op) = prog.chunk.get(ip) {
+        while let Some(op) = chunk.get(ip) {
             ip += 1;
             match op {
                 ByteCode::Noop => {}
@@ -58,13 +57,13 @@ impl VM {
                 }
                 ByteCode::Greater => {
                     let (a, b) = (stack.pop(), stack.pop());
-                    let b = a.unwrap() > b.unwrap();
-                    stack.push(Value::Int(b as i32));
+                    let ok = b.unwrap() > a.unwrap();
+                    stack.push(Value::Int(ok as i32));
                 }
                 ByteCode::Less => {
                     let (a, b) = (stack.pop(), stack.pop());
-                    let b = a.unwrap() < b.unwrap();
-                    stack.push(Value::Int(b as i32));
+                    let ok = b.unwrap() < a.unwrap();
+                    stack.push(Value::Int(ok as i32));
                 }
                 ByteCode::EqualEqual => {
                     let (a, b) = (stack.pop(), stack.pop());
@@ -133,7 +132,7 @@ impl VM {
                 ByteCode::Call(p) => {
                     frames.push(Frame {
                         stack_offset: stack.len(),
-                        ip,
+                        ip: ip - 1,
                     });
                     ip = *p;
                 }
@@ -147,38 +146,77 @@ impl VM {
 
 mod tests {
     use crate::bytecode::ByteCode;
-    use crate::compile::{Program};
     use crate::debug::debug;
+    use crate::emitter::Emitter;
+    use crate::parser::Parser;
+    use crate::scanner::Scanner;
     use crate::value::Value;
 
     use super::VM;
 
     #[test]
     fn test_func_call() {
-        let mut prog = Program::default();
-        prog.write_byte(ByteCode::Push(Value::Int(3)));
-        prog.write_byte(ByteCode::Push(Value::Int(2)));
-        prog.write_byte(ByteCode::Push(Value::Int(1)));
+        let mut chunk = Vec::new();
+        chunk.push(ByteCode::Push(Value::Int(3)));
+        chunk.push(ByteCode::Push(Value::Int(2)));
+        chunk.push(ByteCode::Push(Value::Int(1)));
 
-        prog.write_byte(ByteCode::Jump(7));
-        let add_mul_ip = prog.chunk.len();
-        prog.write_byte(ByteCode::Add);
-        prog.write_byte(ByteCode::Mul);
-        prog.write_byte(ByteCode::Ret);
+        chunk.push(ByteCode::Jump(7));
+        let add_mul_ip = chunk.len();
+        chunk.push(ByteCode::Add);
+        chunk.push(ByteCode::Mul);
+        chunk.push(ByteCode::Ret);
 
-        prog.write_byte(ByteCode::Jump(11));
-        let square_ip = prog.chunk.len();
-        prog.write_byte(ByteCode::GetArg(0));
-        prog.write_byte(ByteCode::Mul);
-        prog.write_byte(ByteCode::Ret);
+        chunk.push(ByteCode::Jump(11));
+        let square_ip = chunk.len();
+        chunk.push(ByteCode::GetArg(0));
+        chunk.push(ByteCode::Mul);
+        chunk.push(ByteCode::Ret);
 
-        prog.write_byte(ByteCode::Call(add_mul_ip));
-        prog.write_byte(ByteCode::Call(square_ip));
-        prog.write_byte(ByteCode::Print);
-
-        debug(&prog);
+        chunk.push(ByteCode::Call(add_mul_ip));
+        chunk.push(ByteCode::Call(square_ip));
+        chunk.push(ByteCode::Print);
 
         let vm = VM::default();
-        vm.eval(prog);
+        vm.eval(chunk.as_ref());
+    }
+
+    #[test]
+    fn test_func_eval() {
+        let source = r#"
+        function fib(n)
+          if n < 2 then
+            return n;
+          end
+
+          local n1 = fib(n-1);
+          local n2 = fib(n-2);
+          return n1 + n2;
+        end
+
+        print(fib(4));
+        "#;
+
+        let mut scanner = Scanner::new(source.to_string());
+        let tokens = scanner.scan_tokens();
+        println!("{:#?}", tokens.as_ref().unwrap());
+        assert_eq!(tokens.as_ref().unwrap().len(), 49);
+
+        let mut parser = Parser::new(tokens.unwrap().clone());
+        let result = parser.parse();
+        assert_eq!(result.is_err(), false);
+        println!("{:#?}", result.as_ref().unwrap());
+        assert_eq!(result.as_ref().unwrap().len(), 2);
+
+        let mut emitter = Emitter::default();
+        let r = emitter.emit(result.as_ref().unwrap());
+        assert_eq!(r.is_err(), false);
+        assert_eq!(r.as_ref().unwrap().len(), 23);
+        println!("{:#?}", r.as_ref().unwrap());
+        debug(r.as_ref().unwrap());
+
+        let chunk = r.unwrap();
+        let vm = VM::default();
+        vm.eval(chunk.as_ref());
     }
 }

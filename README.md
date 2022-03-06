@@ -8,11 +8,11 @@
 - [X] interceptor
 - [X] lex
 - [X] parse
-- [ ] resolver
+- [X] resolver
 - [ ] interceptor
 - [X] bytecode
-- [ ] vm
-- [ ] jit
+- [X] vm(bug fix in func call todo)
+- [X] jit(improve needed)
 - [ ] tail recursion(尾递归)
 
 ## sytax
