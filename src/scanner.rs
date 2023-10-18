@@ -1,8 +1,8 @@
-use std::borrow::Borrow;
 use std::collections::HashMap;
 
 use substring::Substring;
 
+use crate::error::Error;
 use crate::value::Value;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -98,8 +98,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(typ: TokenType, raw: String,
-               value: Value, line: usize) -> Self {
+    pub fn new(typ: TokenType, raw: String, value: Value, line: usize) -> Self {
         Self {
             typ,
             raw,
@@ -112,10 +111,12 @@ impl Token {
 pub struct Scanner {
     pub source: String,
     chars: Vec<char>,
+
     pub tokens: Vec<Token>,
     start: usize,
     current: usize,
     line: usize,
+
     keywords: HashMap<String, TokenType>,
 }
 
@@ -150,18 +151,24 @@ impl Scanner {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Result<&Vec<Token>, String> {
+    pub fn scan_tokens(&mut self) -> Result<&Vec<Token>, Error> {
         while !self.is_at_end() {
             self.start = self.current;
             self.scan_token()?;
         }
 
-        self.tokens.push(Token::new(TokenType::Eof, "".to_string(), Value::Nil, self.line));
+        // EOF token
+        self.tokens.push(Token::new(
+            TokenType::Eof,
+            "".to_string(),
+            Value::Nil,
+            self.line,
+        ));
 
-        Ok(self.tokens.borrow())
+        Ok(&self.tokens)
     }
 
-    fn scan_token(&mut self) -> Result<(), String> {
+    fn scan_token(&mut self) -> Result<(), Error> {
         let c = self.advance();
         match c {
             '(' => self.add_token(TokenType::LeftParen),
@@ -215,7 +222,7 @@ impl Scanner {
             }
             ' ' | '\r' | '\t' => {} // 忽略空格
             '\n' => self.line += 1, // 换行
-            '"' => self.string()?, // 字符串
+            '"' => self.string()?,  // 字符串
             'o' => {
                 if self.match_char('r') {
                     self.add_token(TokenType::Or);
@@ -227,14 +234,17 @@ impl Scanner {
                 } else if c.is_alphabetic() {
                     self.identifier();
                 } else {
-                    return Err(format!("Unexpected character '{}' at {}", c, self.line));
+                    return Err(Error::ScanError(format!(
+                        "Unexpected character '{}' at {}",
+                        c, self.line
+                    )));
                 }
             }
         }
         Ok(())
     }
 
-    fn string(&mut self) -> Result<(), String> {
+    fn string(&mut self) -> Result<(), Error> {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -243,12 +253,14 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            return Err(format!("Unterminated string at {}", self.line));
+            return Err(Error::ScanError(format!(
+                "Unterminated string at {}",
+                self.line
+            )));
         }
         self.advance(); // "
-        let sub = self.source.substring(self.start + 1, self.current - 1);
-        println!("scan string: {}", sub);
-        // TODO 目前只支持 int，所以加入 nil
+        let _sub = self.source.substring(self.start + 1, self.current - 1);
+        // TODO: 目前只支持 int，所以加入 nil
         self.add_token2(TokenType::String, Value::Nil);
         Ok(())
     }
@@ -258,7 +270,7 @@ impl Scanner {
             self.advance();
         }
 
-        // 小数点
+        // TODO: 支持小数点
         if self.peek() == '.' && self.peek_next().is_digit(10) {
             self.advance(); // 跳过.
             while self.peek().is_digit(10) {
@@ -275,8 +287,11 @@ impl Scanner {
             self.advance();
         }
         let sub = self.source.substring(self.start, self.current);
-        let typ = self.keywords.get(sub).
-            cloned().unwrap_or(TokenType::Identifier);
+        let typ = self
+            .keywords
+            .get(sub)
+            .cloned()
+            .unwrap_or(TokenType::Identifier);
         self.add_token(typ);
     }
 
@@ -286,7 +301,8 @@ impl Scanner {
 
     fn add_token2(&mut self, typ: TokenType, val: Value) {
         let sub = self.source.substring(self.start, self.current);
-        self.tokens.push(Token::new(typ, sub.to_string(), val, self.line));
+        self.tokens
+            .push(Token::new(typ, sub.to_string(), val, self.line));
     }
 
     fn match_char(&mut self, expected: char) -> bool {
@@ -325,14 +341,34 @@ impl Scanner {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use super::Scanner;
+    use super::{Scanner, TokenType};
 
     #[test]
     fn test_scan_tokens() {
         let mut scanner = Scanner::new("1+2*3-4".to_string());
-        let tokens = scanner.scan_tokens();
-        println!("{:#?}", tokens.as_ref().unwrap());
-        assert_eq!(tokens.as_ref().unwrap().len(), 8);
+        let tokens = scanner.scan_tokens().unwrap();
+        println!("{:#?}", tokens);
+        assert_eq!(tokens.len(), 8);
+        assert_eq!(tokens[0].typ, TokenType::Number);
+        assert_eq!(tokens[1].typ, TokenType::Plus);
+        assert_eq!(tokens[7].typ, TokenType::Eof);
+    }
+
+    #[test]
+    fn test_scan_tokens_with_mul_lines() {
+        let script = r#"
+        local a = 1 + 2;
+        local b = 4 - 3;
+        local c = a + b;
+        "#;
+        let mut scanner = Scanner::new(script.to_string());
+        let tokens = scanner.scan_tokens().unwrap();
+        println!("{:#?}", tokens);
+        assert_eq!(tokens.len(), 22);
+        assert_eq!(tokens[0].typ, TokenType::Local);
+        assert_eq!(tokens[7].typ, TokenType::Local);
+        assert_eq!(tokens[14].typ, TokenType::Local);
     }
 }

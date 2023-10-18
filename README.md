@@ -1,18 +1,18 @@
-# plua
+# tinylua
 
-> Simple lua interceptor implement by Rust
+> Tiny lua interceptor implement by Rust
 > 通过 Rust 实现简单的 lua 解释器
 
 ## features
 
-- [X] interceptor
-- [X] lex
-- [X] parse
-- [X] resolver
+- [x] interceptor
+- [x] lex
+- [x] parse
+- [x] resolver
 - [ ] interceptor
-- [X] bytecode
-- [X] vm(bug fix in func call todo)
-- [X] jit(improve needed)
+- [x] bytecode
+- [x] vm(bug fix in func call todo)
+- [x] jit(improve needed)
 - [ ] tail recursion(尾递归)
 
 ## sytax
@@ -36,7 +36,7 @@ exprStmt       → expression ";" ;
 
 ifStmt         → "if" expression "then" block
                  ( "else" block )? "end" ;
-                 
+
 printStmt      → "print" expression ";" ;
 returnStmt     → "return" expression? ";" ;
 block          →  declaration*  ;
@@ -81,5 +81,6 @@ DIGIT          → "0" ... "9" ;
 - [Writing Interpreters in Rust: a Guide](https://rust-hosted-langs.github.io/book/introduction.html)
 - [tinyvm](https://github.com/mkhan45/tinyvm)
 - [RustPython](https://github.com/RustPython/RustPython)
-- [语法格式描述规范BNF、EBNF、ABNF](https://www.jianshu.com/p/15efcb0c06c8)
+- [语法格式描述规范 BNF、EBNF、ABNF](https://www.jianshu.com/p/15efcb0c06c8)
 - [The Complete Syntax of Lua](http://parrot.github.io/parrot-docs0/0.4.7/html/languages/lua/doc/lua51.bnf.html)
+- [Debugger](https://github.com/tdp2110/crafting-interpreters-rs/blob/trunk/src/debugger.rs)

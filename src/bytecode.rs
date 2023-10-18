@@ -30,7 +30,7 @@ pub enum OpCode {
     LessThan,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ByteCode {
     Push(Value),
     Pop,
@@ -40,24 +40,29 @@ pub enum ByteCode {
     Decr,
     Mul,
     Div,
+    Equal,
     EqualEqual,
     Less,
     Greater,
     Jump(usize),
-    JE(usize),
-    JNE(usize),
-    JGT(usize),
-    JLT(usize),
-    JGE(usize),
-    JLE(usize),
-    Get(usize),
-    Set(usize),
-    GetArg(usize),
-    SetArg(usize),
-    Noop,
-    Print,
+    JumpIfFalse(usize),
+    
+    //
+    Closure(usize),
     Call(usize),
+    DefineGlabal(usize),
+    GetGlobal(usize),
+    SetGlobal(usize),
+    GetLocal(usize),
+    SetLocal(usize),
+    Constant(usize),
+    Nil,
+    Print,
     Ret,
+
+    // TODO:
+    // Negtive,
+    // Bang,
 }
 
 // 符号

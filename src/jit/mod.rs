@@ -5,9 +5,9 @@ use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{DataContext, Linkage, Module};
 
+use crate::expression::Expr;
 use crate::scanner::Token;
 use crate::statement::Stmt;
-use crate::expression::Expr;
 use crate::value::Value as ValueRaw;
 
 // jit implement by cranelift inspired by RustPython
@@ -45,10 +45,7 @@ impl JIT {
                 .declare_function(name.raw.as_str(), Linkage::Export, &self.ctx.func.signature)
                 .map_err(|e| e.to_string())?;
             self.module
-                .define_function(
-                    id,
-                    &mut self.ctx,
-                )
+                .define_function(id, &mut self.ctx)
                 .map_err(|e| e.to_string())?;
             self.module.clear_context(&mut self.ctx);
             self.module.finalize_definitions();
@@ -131,46 +128,43 @@ struct FunctionTranslator<'a> {
 impl<'a> FunctionTranslator<'a> {
     fn translate_stmt(&mut self, stmt: &Stmt) -> Result<Value, String> {
         match stmt {
-            Stmt::Expression(expr) => {
-                match expr {
-                    Expr::Literal(literal) => {
-                        return if let ValueRaw::Int(imm) = literal {
-                            Ok(self.builder.ins().iconst(self.int, i64::from(*imm)))
-                        } else {
-                            Err("value type not support".to_string())
-                        };
-                    }
-
-                    Expr::Binary(left, op, right) => {
-                        match op.raw.as_str() {
-                            "+" => {
-                                let lhs = self.translate_expr(left.as_ref())?;
-                                let rhs = self.translate_expr(right.as_ref())?;
-                                return Ok(self.builder.ins().iadd(lhs, rhs));
-                            }
-                            "-" => {
-                                let lhs = self.translate_expr(left.as_ref())?;
-                                let rhs = self.translate_expr(right.as_ref())?;
-                                return Ok(self.builder.ins().isub(lhs, rhs));
-                            }
-                            "*" => {
-                                let lhs = self.translate_expr(left.as_ref())?;
-                                let rhs = self.translate_expr(right.as_ref())?;
-                                return Ok(self.builder.ins().imul(lhs, rhs));
-                            }
-                            "/" => {
-                                let lhs = self.translate_expr(left.as_ref())?;
-                                let rhs = self.translate_expr(right.as_ref())?;
-                                return Ok(self.builder.ins().udiv(lhs, rhs));
-                            }
-                            _ => {}
-                        }
-                    }
-                    Expr::Assign(name, expr)
-                    => return self.translate_assign(name.raw.clone(), expr.as_ref()),
-                    _ => {}
+            Stmt::Expression(expr) => match expr {
+                Expr::Literal(literal) => {
+                    return if let ValueRaw::Int(imm) = literal {
+                        Ok(self.builder.ins().iconst(self.int, i64::from(*imm)))
+                    } else {
+                        Err("value type not support".to_string())
+                    };
                 }
-            }
+
+                Expr::Binary(left, op, right) => match op.raw.as_str() {
+                    "+" => {
+                        let lhs = self.translate_expr(left.as_ref())?;
+                        let rhs = self.translate_expr(right.as_ref())?;
+                        return Ok(self.builder.ins().iadd(lhs, rhs));
+                    }
+                    "-" => {
+                        let lhs = self.translate_expr(left.as_ref())?;
+                        let rhs = self.translate_expr(right.as_ref())?;
+                        return Ok(self.builder.ins().isub(lhs, rhs));
+                    }
+                    "*" => {
+                        let lhs = self.translate_expr(left.as_ref())?;
+                        let rhs = self.translate_expr(right.as_ref())?;
+                        return Ok(self.builder.ins().imul(lhs, rhs));
+                    }
+                    "/" => {
+                        let lhs = self.translate_expr(left.as_ref())?;
+                        let rhs = self.translate_expr(right.as_ref())?;
+                        return Ok(self.builder.ins().udiv(lhs, rhs));
+                    }
+                    _ => {}
+                },
+                Expr::Assign(name, expr) => {
+                    return self.translate_assign(name.raw.clone(), expr.as_ref())
+                }
+                _ => {}
+            },
             Stmt::ReturnStmt(_token, expr) => {
                 return if let Expr::Variable(ident) = expr {
                     let return_variable = self.variables.get(ident.raw.as_str()).unwrap();
@@ -195,33 +189,30 @@ impl<'a> FunctionTranslator<'a> {
                     Err("value type not support".to_string())
                 };
             }
-            Expr::Binary(left, op, right) => {
-                match op.raw.as_str() {
-                    "+" => {
-                        let lhs = self.translate_expr(left.as_ref())?;
-                        let rhs = self.translate_expr(right.as_ref())?;
-                        return Ok(self.builder.ins().iadd(lhs, rhs));
-                    }
-                    "-" => {
-                        let lhs = self.translate_expr(left.as_ref())?;
-                        let rhs = self.translate_expr(right.as_ref())?;
-                        return Ok(self.builder.ins().isub(lhs, rhs));
-                    }
-                    "*" => {
-                        let lhs = self.translate_expr(left.as_ref())?;
-                        let rhs = self.translate_expr(right.as_ref())?;
-                        return Ok(self.builder.ins().imul(lhs, rhs));
-                    }
-                    "/" => {
-                        let lhs = self.translate_expr(left.as_ref())?;
-                        let rhs = self.translate_expr(right.as_ref())?;
-                        return Ok(self.builder.ins().udiv(lhs, rhs));
-                    }
-                    _ => Err("op not support".to_string()),
+            Expr::Binary(left, op, right) => match op.raw.as_str() {
+                "+" => {
+                    let lhs = self.translate_expr(left.as_ref())?;
+                    let rhs = self.translate_expr(right.as_ref())?;
+                    return Ok(self.builder.ins().iadd(lhs, rhs));
                 }
-            }
-            Expr::Assign(name, expr)
-            => self.translate_assign(name.raw.clone(), expr.as_ref()),
+                "-" => {
+                    let lhs = self.translate_expr(left.as_ref())?;
+                    let rhs = self.translate_expr(right.as_ref())?;
+                    return Ok(self.builder.ins().isub(lhs, rhs));
+                }
+                "*" => {
+                    let lhs = self.translate_expr(left.as_ref())?;
+                    let rhs = self.translate_expr(right.as_ref())?;
+                    return Ok(self.builder.ins().imul(lhs, rhs));
+                }
+                "/" => {
+                    let lhs = self.translate_expr(left.as_ref())?;
+                    let rhs = self.translate_expr(right.as_ref())?;
+                    return Ok(self.builder.ins().udiv(lhs, rhs));
+                }
+                _ => Err("op not support".to_string()),
+            },
+            Expr::Assign(name, expr) => self.translate_assign(name.raw.clone(), expr.as_ref()),
             _ => Err("un support expr".to_string()),
         }
     }
@@ -277,14 +268,12 @@ fn declare_variables_in_stmt(
     stmt: &Stmt,
 ) {
     match stmt {
-        Stmt::Expression(expr) => {
-            match expr {
-                Expr::Assign(ref name, _) => {
-                    declare_variable(int, builder, variables, index, name.raw.as_str());
-                }
-                _ => {}
+        Stmt::Expression(expr) => match expr {
+            Expr::Assign(ref name, _) => {
+                declare_variable(int, builder, variables, index, name.raw.as_str());
             }
-        }
+            _ => {}
+        },
         _ => (),
     }
 }
@@ -305,12 +294,12 @@ fn declare_variable(
     var
 }
 
-
+#[cfg(test)]
 mod tests {
-    use std::mem;
     use super::JIT;
     use crate::parser::Parser;
     use crate::scanner::Scanner;
+    use std::mem;
 
     #[test]
     fn test_jit() {

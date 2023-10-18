@@ -1,8 +1,10 @@
+use enum_as_inner::EnumAsInner;
+
 use crate::expression::Expr;
-use crate::scanner::{Token};
+use crate::scanner::Token;
 
 // Stmt 语句 trait
-#[derive(Debug)]
+#[derive(Debug, Clone, EnumAsInner)]
 pub enum Stmt {
     PrintStmt(Expr),
     IfStmt(Expr, Box<Stmt>, Box<Stmt>),

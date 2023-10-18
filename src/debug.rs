@@ -1,11 +1,16 @@
-use crate::bytecode::ByteCode;
+use crate::{
+    bytecode::ByteCode,
+    emitter::{Chunk, Function},
+};
 
 // 输出字节码详细信息
-pub fn debug(chunk: &Vec<ByteCode>) {
+pub fn debug(chunk: &Chunk) {
+    let codes = &chunk.codes;
+    let constants = &chunk.constants;
     let mut offset = 0;
-    while offset < chunk.len() {
+    while offset < codes.len() {
         print!("{:04} ", offset);
-        match chunk[offset] {
+        match &codes[offset] {
             ByteCode::Push(d) => {
                 print!("{:16} '{}", "Push", d);
                 print!("'\n");
@@ -54,63 +59,65 @@ pub fn debug(chunk: &Vec<ByteCode>) {
                 print!("{:16} '{:04}", "Jump", i);
                 print!("'\n");
             }
-            ByteCode::JE(i) => {
-                print!("{:16} '{:04}", "JE", i);
+            ByteCode::GetLocal(i) => {
+                print!("{:16} {} '{}", "GetLocal", i, constants[*i]);
                 print!("'\n");
             }
-            ByteCode::JNE(i) => {
-                print!("{:16} '{:04}", "JNE", i);
+            ByteCode::SetLocal(i) => {
+                print!("{:16} {} '{}", "SetLocal", i, constants[*i]);
                 print!("'\n");
-            }
-            ByteCode::JGT(i) => {
-                print!("{:16} '{:04}", "JGT", i);
-                print!("'\n");
-            }
-            ByteCode::JLT(i) => {
-                print!("{:16} '{:04}", "JLT", i);
-                print!("'\n");
-            }
-            ByteCode::JGE(i) => {
-                print!("{:16} '{:04}", "JGE", i);
-                print!("'\n");
-            }
-            ByteCode::JLE(i) => {
-                print!("{:16} '{:04}", "JLE", i);
-                print!("'\n");
-            }
-            ByteCode::Get(i) => {
-                print!("{:16} '{}", "Get", i);
-                print!("'\n");
-            }
-            ByteCode::Set(i) => {
-                print!("{:16} '{}", "Set", i);
-                print!("'\n");
-            }
-            ByteCode::GetArg(i) => {
-                print!("{:16} '{}", "GetArg", i);
-                print!("'\n");
-            }
-            ByteCode::SetArg(i) => {
-                print!("{:16} '{}", "SetArg", i);
-                print!("'\n");
-            }
-            ByteCode::Noop => {
-                print!("{:16}", "Noop");
-                print!("\n");
             }
             ByteCode::Print => {
                 print!("{:16}", "Print");
                 print!("\n");
             }
-            ByteCode::Call(i) => {
-                print!("{:16} '{:04}", "Call", i);
+            ByteCode::Call(c) => {
+                print!("{:16} '{}", "Call", c);
                 print!("'\n");
             }
             ByteCode::Ret => {
                 print!("{:16}", "Ret");
                 print!("\n");
             }
+            ByteCode::Equal => todo!(),
+            ByteCode::JumpIfFalse(_) => todo!(),
+            ByteCode::Closure(i) => {
+                print!("{:16} {} '{}", "Closure", i, constants[*i]);
+                print!("'\n");
+            }
+            ByteCode::DefineGlabal(i) => {
+                print!("{:16} {} '{}", "DefineGlabal", i, constants[*i]);
+                print!("'\n");
+            }
+            ByteCode::GetGlobal(i) => {
+                print!("{:16} {} '{}", "GetGlobal", i, constants[*i]);
+                print!("'\n");
+            }
+            ByteCode::SetGlobal(i) => {
+                print!("{:16} {} '{}", "SetGlobal", i, constants[*i]);
+                print!("'\n");
+            }
+            ByteCode::Constant(i) => {
+                print!("{:16} {} '{}", "Constant", i, constants[*i]);
+                print!("'\n");
+            }
+            ByteCode::Nil => {
+                print!("{:16}", "Nil");
+                print!("\n");
+            }
         }
         offset += 1;
+    }
+}
+
+pub fn debug_all(funcs: &Vec<Function>) {
+    for func in funcs {
+        print!(
+            "== {} arity: {}  value_count: {} ==\n",
+            func.name.as_str(),
+            func.arity,
+            func.value_count
+        );
+        debug(&func.chunk());
     }
 }
