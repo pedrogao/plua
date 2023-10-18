@@ -5,12 +5,12 @@
 
 ## features
 
-- [x] interceptor
-- [x] lex
-- [x] parse
+- [x] scanner
+- [x] parser
 - [x] resolver
-- [ ] interceptor
+- [x] interpreter
 - [x] bytecode
+- [ ] debugger
 - [x] vm(bug fix in func call todo)
 - [x] jit(improve needed)
 - [ ] tail recursion(尾递归)
@@ -84,3 +84,4 @@ DIGIT          → "0" ... "9" ;
 - [语法格式描述规范 BNF、EBNF、ABNF](https://www.jianshu.com/p/15efcb0c06c8)
 - [The Complete Syntax of Lua](http://parrot.github.io/parrot-docs0/0.4.7/html/languages/lua/doc/lua51.bnf.html)
 - [Debugger](https://github.com/tdp2110/crafting-interpreters-rs/blob/trunk/src/debugger.rs)
+- [Craft a language](https://gitee.com/richard-gong/craft-a-language)
