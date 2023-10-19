@@ -1,31 +1,27 @@
 use std::collections::HashMap;
 
 use crate::bytecode::ByteCode;
-use crate::emitter::{Chunk, Function};
+use crate::emitter::Function;
 use crate::value::Value;
 
 #[derive(Debug, Default)]
 pub struct VM {
     globals: HashMap<String, Value>,
     frames: Vec<Frame>,
-    current_frame: Option<usize>,
-    funcs: Vec<Function>,
+    stack: Vec<Value>,
+    current: usize,
 }
 
 #[derive(Debug)]
 pub struct Frame {
     sp: usize,
     ip: usize,
-    locals: Vec<Value>,
+    current: usize,
 }
 
 impl Frame {
-    pub fn new(sp: usize, ip: usize) -> Self {
-        Self {
-            sp,
-            ip,
-            locals: Vec::new(),
-        }
+    pub fn new(sp: usize, ip: usize, current: usize) -> Self {
+        Self { sp, ip, current }
     }
 }
 
@@ -34,287 +30,166 @@ impl VM {
         Self {
             globals: HashMap::new(),
             frames: Vec::new(),
-            current_frame: None,
-            funcs: Vec::new(),
+            stack: Vec::new(),
+            current: 0,
         }
     }
 
-    pub fn new_with_funcs(funcs: Vec<Function>) -> Self {
-        Self {
-            globals: HashMap::new(),
-            frames: Vec::new(),
-            current_frame: None,
-            funcs,
-        }
-    }
+    pub fn interpret(&mut self, funcs: &Vec<Function>) -> Value {
+        let func = funcs.get(self.current);
+        let mut ip = 0;
 
-    pub fn eval_all(&mut self) -> Value {
-        let chunk = self.funcs.first().map(|func| func.chunk()).cloned();
-        if let Some(chunk) = chunk.as_ref() {
-            self.eval(chunk)
+        if let Some(func) = func {
+            let mut chunk = func.chunk();
+            let mut arg_count = func.arity;
+            let mut code = &chunk.codes;
+            let mut constant = &chunk.constants;
+            let mut ret = Value::Nil;
+
+            while let Some(op) = code.get(ip) {
+                ip += 1;
+                match op {
+                    ByteCode::Push(d) => self.stack.push(d.clone()),
+                    ByteCode::Pop => {
+                        self.stack.pop();
+                    }
+                    ByteCode::Add => {
+                        let (a, b) = (self.stack.pop(), self.stack.pop());
+                        self.stack.push(a.unwrap() + b.unwrap())
+                    }
+                    ByteCode::Sub => {
+                        let (a, b) = (self.stack.pop(), self.stack.pop());
+                        self.stack.push(b.unwrap() - a.unwrap())
+                    }
+                    ByteCode::Mul => {
+                        let (a, b) = (self.stack.pop(), self.stack.pop());
+                        self.stack.push(a.unwrap() * b.unwrap())
+                    }
+                    ByteCode::Div => {
+                        let (a, b) = (self.stack.pop(), self.stack.pop());
+                        self.stack.push(b.unwrap() / a.unwrap())
+                    }
+                    ByteCode::Incr => {
+                        *self.stack.last_mut().unwrap() += Value::Int(1);
+                    }
+                    ByteCode::Decr => {
+                        *self.stack.last_mut().unwrap() -= Value::Int(1);
+                    }
+                    ByteCode::Greater => {
+                        let (a, b) = (self.stack.pop(), self.stack.pop());
+                        let ok = b.unwrap() > a.unwrap();
+                        self.stack.push(Value::Bool(ok));
+                    }
+                    ByteCode::Less => {
+                        let (a, b) = (self.stack.pop(), self.stack.pop());
+                        let ok = b.unwrap() < a.unwrap();
+                        self.stack.push(Value::Bool(ok));
+                    }
+                    ByteCode::EqualEqual => {
+                        let (a, b) = (self.stack.pop(), self.stack.pop());
+                        let b = a.unwrap() == b.unwrap();
+                        self.stack.push(Value::Bool(b));
+                    }
+                    ByteCode::Jump(p) => ip += *p,
+                    ByteCode::GetLocal(i) => {
+                        // locals from stack
+                        println!("stack: {:?}, arg_count: {}, i: {}", self.stack, arg_count, i);
+                        let value = self.stack.get(self.stack.len() - arg_count + *i).unwrap();
+                        self.stack.push(value.clone());
+                    }
+                    ByteCode::SetLocal(_i) => todo!(),
+                    ByteCode::Print => {
+                        let val = self.stack.pop().unwrap();
+                        print!("{}", val);
+                    }
+                    ByteCode::Call(n) => {
+                        // Save current frame,
+                        let current_frame = Frame::new(self.stack.len(), ip, self.current);
+                        self.frames.push(current_frame);
+
+                        // Create new frame
+                        println!("call stack: {:?}", self.stack);
+                        let mut args = vec![];
+                        for _ in 0..*n {
+                            let arg = self.stack.pop().unwrap();
+                            args.push(arg);
+                        }
+                        let func = self.stack.pop().unwrap();
+                        let closure = func.as_closure().unwrap();
+                        let func_name = constant.get(*closure.0).unwrap();
+                        let next_func_index = funcs
+                            .iter()
+                            .position(|f| f.name.as_str() == func_name.as_string().unwrap())
+                            .unwrap();
+                        self.current = next_func_index;
+                        arg_count = *n;
+                        chunk = funcs.get(next_func_index).unwrap().chunk();
+                        code = &chunk.codes;
+                        constant = &chunk.constants;
+                        for ele in args {
+                            self.stack.push(ele);
+                        }
+                        ip = 0;
+                    }
+                    ByteCode::Ret => {
+                        let val = self.stack.pop().unwrap();
+                        let frame = self.frames.pop();
+                        if let Some(frame) = frame {
+                            ip = frame.ip;
+                            let current = frame.current;
+                            chunk = funcs.get(current).unwrap().chunk();
+                            code = &chunk.codes;
+                            constant = &chunk.constants;
+
+                            self.stack.truncate(frame.sp);
+                            self.stack.push(val.clone());
+                        } else {
+                            ret = val;
+                        }
+                    }
+                    ByteCode::JumpIfFalse(p) => ip += *p,
+                    ByteCode::Closure(i) => {
+                        let value = constant.get(*i).unwrap();
+                        self.stack.push(value.clone());
+                    }
+                    ByteCode::Equal => todo!(),
+                    ByteCode::DefineGlabal(i) => {
+                        let val = self.stack.pop().unwrap();
+                        let name = constant.get(*i).unwrap();
+                        self.globals.insert(name.as_string().unwrap().clone(), val);
+                    }
+                    ByteCode::GetGlobal(i) => {
+                        let name = constant.get(*i).unwrap();
+                        let val = self.globals.get(name.as_string().unwrap()).unwrap();
+                        self.stack.push(val.clone());
+                    }
+                    ByteCode::SetGlobal(_) => todo!(),
+                    ByteCode::Constant(i) => {
+                        let val = constant.get(*i).unwrap();
+                        self.stack.push(val.clone());
+                    }
+                    ByteCode::Nil => {
+                        self.stack.push(Value::Nil);
+                    }
+                }
+            }
+
+            ret
         } else {
             Value::Nil
         }
     }
 
-    pub fn eval(&mut self, chunk: &Chunk) -> Value {
-        let mut stack: Vec<Value> = Vec::new();
-        let mut ip = 0;
-        let code = &chunk.codes;
-        let constant = &chunk.constants;
-        let mut ret = Value::Nil;
-
-        while let Some(op) = code.get(ip) {
-            ip += 1;
-            match op {
-                ByteCode::Push(d) => stack.push(d.clone()),
-                ByteCode::Pop => {
-                    stack.pop();
-                }
-                ByteCode::Add => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    stack.push(a.unwrap() + b.unwrap())
-                }
-                ByteCode::Sub => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    stack.push(b.unwrap() - a.unwrap())
-                }
-                ByteCode::Mul => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    stack.push(a.unwrap() * b.unwrap())
-                }
-                ByteCode::Div => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    stack.push(b.unwrap() / a.unwrap())
-                }
-                ByteCode::Incr => {
-                    *stack.last_mut().unwrap() += Value::Int(1);
-                }
-                ByteCode::Decr => {
-                    *stack.last_mut().unwrap() -= Value::Int(1);
-                }
-                ByteCode::Greater => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    let ok = b.unwrap() > a.unwrap();
-                    stack.push(Value::Bool(ok));
-                }
-                ByteCode::Less => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    let ok = b.unwrap() < a.unwrap();
-                    stack.push(Value::Bool(ok));
-                }
-                ByteCode::EqualEqual => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    let b = a.unwrap() == b.unwrap();
-                    stack.push(Value::Bool(b));
-                }
-                ByteCode::Jump(p) => ip = *p,
-                ByteCode::GetLocal(i) => {
-                    let name = constant.get(*i).unwrap();
-                    // let val = self
-                    //     .current_frame()
-                    //     .locals
-                    //     .get(name.as_string().unwrap())
-                    //     .unwrap();
-                    // stack.push(val.clone());
-                }
-                ByteCode::SetLocal(_i) => todo!(),
-                ByteCode::Print => {
-                    let val = stack.pop().unwrap();
-                    print!("{}", val);
-                }
-                ByteCode::Call(arg_count) => {
-                    // Save current frame,
-                    let current_frame = Frame::new(stack.len(), ip - 1);
-                    self.frames.push(current_frame);
-
-                    // Create new frame
-                    for _ in 0..*arg_count {
-                        let arg = stack.pop().unwrap();
-                    }
-                    let func = stack.pop().unwrap();
-
-                    let closure = func.as_closure().unwrap();
-                    let func_name = constant.get(*closure.0).unwrap();
-                    // let param_names = constant.get(*closure.1).unwrap();
-                    let next_func = self
-                        .funcs
-                        .iter()
-                        .find(|f| f.name.as_str() == func_name.as_string().unwrap())
-                        .unwrap();
-                    println!("next_func: {:?}", next_func);
-                    // let ret = self.eval_func(next_func, *arg_count);
-                    // stack.push(ret);
-                    // let frame = Frame::new(stack.len() - *arg_count, 0);
-                }
-                ByteCode::Ret => {
-                    let val = stack.pop().unwrap();
-                    ret = val;
-                }
-                ByteCode::JumpIfFalse(_) => todo!(),
-                ByteCode::Closure(i) => {
-                    let value = constant.get(*i).unwrap();
-                    stack.push(value.clone());
-                }
-                ByteCode::Equal => todo!(),
-                ByteCode::DefineGlabal(i) => {
-                    let val = stack.pop().unwrap();
-                    let name = constant.get(*i).unwrap();
-                    self.globals.insert(name.as_string().unwrap().clone(), val);
-                }
-                ByteCode::GetGlobal(i) => {
-                    let name = constant.get(*i).unwrap();
-                    let val = self.globals.get(name.as_string().unwrap()).unwrap();
-                    stack.push(val.clone());
-                }
-                ByteCode::SetGlobal(_) => todo!(),
-                ByteCode::Constant(i) => {
-                    let val = constant.get(*i).unwrap();
-                    stack.push(val.clone());
-                }
-                ByteCode::Nil => {
-                    stack.push(Value::Nil);
-                }
-            }
-        }
-
-        ret
-    }
-
-    fn eval_func(&mut self, func: &Function, arg_count: usize) -> Value {
-        // if func.arity != arg_count {
-        // }
-        let mut stack: Vec<Value> = Vec::new();
-        let chunk = func.chunk();
-        let mut ip = 0;
-        let code = &chunk.codes;
-        let constant = &chunk.constants;
-        let mut ret = Value::Nil;
-
-        while let Some(op) = code.get(ip) {
-            ip += 1;
-            match op {
-                ByteCode::Push(d) => stack.push(d.clone()),
-                ByteCode::Pop => {
-                    stack.pop();
-                }
-                ByteCode::Add => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    stack.push(a.unwrap() + b.unwrap())
-                }
-                ByteCode::Sub => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    stack.push(b.unwrap() - a.unwrap())
-                }
-                ByteCode::Mul => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    stack.push(a.unwrap() * b.unwrap())
-                }
-                ByteCode::Div => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    stack.push(b.unwrap() / a.unwrap())
-                }
-                ByteCode::Incr => {
-                    *stack.last_mut().unwrap() += Value::Int(1);
-                }
-                ByteCode::Decr => {
-                    *stack.last_mut().unwrap() -= Value::Int(1);
-                }
-                ByteCode::Greater => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    let ok = b.unwrap() > a.unwrap();
-                    stack.push(Value::Bool(ok));
-                }
-                ByteCode::Less => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    let ok = b.unwrap() < a.unwrap();
-                    stack.push(Value::Bool(ok));
-                }
-                ByteCode::EqualEqual => {
-                    let (a, b) = (stack.pop(), stack.pop());
-                    let b = a.unwrap() == b.unwrap();
-                    stack.push(Value::Bool(b));
-                }
-                ByteCode::Jump(p) => ip = *p,
-                ByteCode::GetLocal(i) => {
-                    let name = constant.get(*i).unwrap();
-                    // let val = self
-                    //     .current_frame()
-                    //     .locals
-                    //     .get(name.as_string().unwrap())
-                    //     .unwrap();
-                    // stack.push(val.clone());
-                }
-                ByteCode::SetLocal(_i) => todo!(),
-                ByteCode::Print => {
-                    let val = stack.pop().unwrap();
-                    print!("{}", val);
-                }
-                ByteCode::Call(arg_count) => {
-                    // Save current frame,
-                    let current_frame = Frame::new(stack.len(), ip - 1);
-                    self.frames.push(current_frame);
-
-                    // Create new frame
-                    let func = stack.pop().unwrap();
-                    let closure = func.as_closure().unwrap();
-
-                    let func_name = constant.get(*closure.0).unwrap();
-                    // let param_names = constant.get(*closure.1).unwrap();
-                    let next_func = self
-                        .funcs
-                        .iter()
-                        .find(|f| f.name.as_str() == func_name.as_string().unwrap())
-                        .unwrap();
-                    // let ret = self.eval_func(next_func, *arg_count);
-                    // stack.push(ret);
-                    // let frame = Frame::new(stack.len() - *arg_count, 0);
-                }
-                ByteCode::Ret => {
-                    let val = stack.pop().unwrap();
-                    ret = val;
-                }
-                ByteCode::JumpIfFalse(_) => todo!(),
-                ByteCode::Closure(i) => {
-                    let value = constant.get(*i).unwrap();
-                    stack.push(value.clone());
-                }
-                ByteCode::Equal => todo!(),
-                ByteCode::DefineGlabal(i) => {
-                    let val = stack.pop().unwrap();
-                    let name = constant.get(*i).unwrap();
-                    self.globals.insert(name.as_string().unwrap().clone(), val);
-                }
-                ByteCode::GetGlobal(i) => {
-                    let name = constant.get(*i).unwrap();
-                    let val = self.globals.get(name.as_string().unwrap()).unwrap();
-                    stack.push(val.clone());
-                }
-                ByteCode::SetGlobal(_) => todo!(),
-                ByteCode::Constant(i) => {
-                    let val = constant.get(*i).unwrap();
-                    stack.push(val.clone());
-                }
-                ByteCode::Nil => {
-                    stack.push(Value::Nil);
-                }
-            }
-        }
-
-        ret
-    }
-
     fn current_frame(&mut self) -> &mut Frame {
-        let idx = self.current_frame.unwrap();
-        self.frames.get_mut(idx).unwrap()
+        self.frames.last_mut().unwrap()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::bytecode::ByteCode;
-    use crate::debug::{debug, debug_all};
-    use crate::emitter::{Chunk, Emitter};
+    use crate::debug::debug_all;
+    use crate::emitter::{Emitter, Function};
     use crate::parser::Parser;
     use crate::scanner::Scanner;
     use crate::value::Value;
@@ -323,7 +198,8 @@ mod tests {
 
     #[test]
     fn test_variable_declare() {
-        let mut chunk = Chunk::new();
+        let mut func = Function::new("main".to_string());
+        let mut chunk = func.chunk_mut();
         let mut index = chunk.add_constant(Value::Int(1));
         chunk.add_bytecode(ByteCode::Constant(index));
         index = chunk.add_constant(Value::Int(2));
@@ -343,7 +219,8 @@ mod tests {
         chunk.add_bytecode(ByteCode::Ret);
 
         let mut vm = VM::default();
-        let ret = vm.eval(&chunk);
+        let funcs = vec![func];
+        let ret = vm.interpret(&funcs);
         assert_eq!(ret, Value::Nil);
     }
 
@@ -362,12 +239,12 @@ mod tests {
         assert_eq!(result.len(), 2);
 
         let mut emitter = Emitter::default();
-        let chunk = emitter.emit(&result).unwrap();
-        assert_eq!(chunk.codes.len(), 10);
-        debug(chunk);
+        let chunk = emitter.emit_all(&result).unwrap();
+        assert_eq!(chunk.len(), 1);
+        debug_all(chunk);
 
         let mut vm = VM::default();
-        let ret = vm.eval(&chunk);
+        let ret = vm.interpret(chunk);
         assert_eq!(ret, Value::Nil);
     }
 
@@ -393,8 +270,8 @@ mod tests {
         assert_eq!(funcs.len(), 2);
         debug_all(funcs);
 
-        let mut vm = VM::new_with_funcs(funcs.clone());
-        let ret = vm.eval_all();
+        let mut vm = VM::new();
+        let ret = vm.interpret(funcs);
         assert_eq!(ret, Value::Nil);
     }
 
@@ -416,22 +293,22 @@ mod tests {
 
         let mut scanner = Scanner::new(source.to_string());
         let tokens = scanner.scan_tokens();
-        println!("{:#?}", tokens.as_ref().unwrap());
+        // println!("{:#?}", tokens.as_ref().unwrap());
         assert_eq!(tokens.as_ref().unwrap().len(), 49);
 
         let mut parser = Parser::new(tokens.unwrap().clone());
-        let result = parser.parse();
-        assert_eq!(result.is_err(), false);
-        println!("{:#?}", result.as_ref().unwrap());
-        assert_eq!(result.as_ref().unwrap().len(), 2);
+        let result = parser.parse().unwrap();
+        // println!("{:#?}", result);
+        assert_eq!(result.len(), 2);
 
         let mut emitter = Emitter::default();
-        let r = emitter.emit(result.as_ref().unwrap()).unwrap();
-        assert_eq!(r.codes.len(), 23);
-        debug(r);
+        let funcs = emitter.emit_all(&result).unwrap();
+        assert_eq!(funcs.len(), 2);
+        debug_all(funcs);
 
-        let mut vm = VM::default();
-        vm.eval(r);
+        let mut vm = VM::new();
+        let ret = vm.interpret(funcs);
+        assert_eq!(ret, Value::Nil);
     }
 
     #[test]
@@ -447,21 +324,22 @@ mod tests {
 
         let mut scanner = Scanner::new(source.to_string());
         let tokens = scanner.scan_tokens();
-        println!("{:#?}", tokens.as_ref().unwrap());
+        // println!("{:#?}", tokens.as_ref().unwrap());
         assert_eq!(tokens.as_ref().unwrap().len(), 29);
 
         let mut parser = Parser::new(tokens.unwrap().clone());
         let result = parser.parse();
         assert_eq!(result.is_err(), false);
-        println!("{:#?}", result.as_ref().unwrap());
+        // println!("{:#?}", result.as_ref().unwrap());
         assert_eq!(result.as_ref().unwrap().len(), 2);
 
         let mut emitter = Emitter::default();
-        let chunk = emitter.emit(result.as_ref().unwrap()).unwrap();
-        assert_eq!(chunk.codes.len(), 12);
-        debug(chunk);
+        let funcs = emitter.emit_all(result.as_ref().unwrap()).unwrap();
+        assert_eq!(funcs.len(), 2);
+        debug_all(funcs);
 
         let mut vm = VM::default();
-        vm.eval(chunk);
+        let ret = vm.interpret(funcs);
+        assert_eq!(ret, Value::Nil);
     }
 }

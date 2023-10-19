@@ -60,11 +60,11 @@ pub fn debug(chunk: &Chunk) {
                 print!("'\n");
             }
             ByteCode::GetLocal(i) => {
-                print!("{:16} {} '{}", "GetLocal", i, constants[*i]);
+                print!("{:16} '{}", "GetLocal", i);
                 print!("'\n");
             }
             ByteCode::SetLocal(i) => {
-                print!("{:16} {} '{}", "SetLocal", i, constants[*i]);
+                print!("{:16} '{}", "SetLocal", i);
                 print!("'\n");
             }
             ByteCode::Print => {
@@ -79,8 +79,14 @@ pub fn debug(chunk: &Chunk) {
                 print!("{:16}", "Ret");
                 print!("\n");
             }
-            ByteCode::Equal => todo!(),
-            ByteCode::JumpIfFalse(_) => todo!(),
+            ByteCode::Equal => {
+                print!("{:16}", "Equal");
+                print!("\n");
+            }
+            ByteCode::JumpIfFalse(i) => {
+                print!("{:16} '{:04}", "JumpIfFalse", i);
+                print!("'\n");
+            }
             ByteCode::Closure(i) => {
                 print!("{:16} {} '{}", "Closure", i, constants[*i]);
                 print!("'\n");

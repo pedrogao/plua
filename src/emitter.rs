@@ -34,6 +34,7 @@ pub struct Function {
     pub name: String,
     pub arity: usize, // arguments count
     pub value_count: usize,
+    pub locals: Vec<Value>,
     chunk: Chunk,
 }
 
@@ -43,6 +44,7 @@ impl Function {
             name,
             arity: 0,
             value_count: 0,
+            locals: vec![],
             chunk: Chunk::new(),
         }
     }
@@ -61,6 +63,14 @@ impl Function {
 
     pub fn chunk(&self) -> &Chunk {
         &self.chunk
+    }
+
+    pub fn locals(&self) -> &Vec<Value> {
+        &self.locals
+    }
+
+    pub fn locals_mut(&mut self) -> &mut Vec<Value> {
+        &mut self.locals
     }
 }
 
@@ -131,9 +141,11 @@ impl Emitter {
     }
 
     fn emit_block(&mut self, stmts: &Vec<Stmt>) -> Result<(), Error> {
+        self.begin_scope();
         for stmt in stmts {
             self.emit_stmt(stmt)?;
         }
+        self.end_scope();
         Ok(())
     }
 
@@ -150,14 +162,9 @@ impl Emitter {
         params: &Vec<Token>,
         body: &Vec<Stmt>,
     ) -> Result<(), Error> {
-        self.begin_scope(name.raw.as_str());
-        self.current().set_arity(params.len());
-
-        for stmt in body {
-            self.emit_stmt(stmt)?;
-        }
-
-        self.end_scope();
+        self.functions.push(Function::new(name.raw.clone()));
+        self.functions.last_mut().unwrap().set_arity(params.len());
+        self.emit_block(body)?;
 
         let func_name = name.raw.as_str();
         let idx = self.add_constant(Value::String(func_name.to_string()));
@@ -176,10 +183,13 @@ impl Emitter {
 
     fn emit_local_stmt(&mut self, name: &Token, init: &Expr) -> Result<(), Error> {
         self.emit_expr(init)?;
-
-        let name = name.raw.as_str();
-        let index = self.add_constant(Value::String(name.to_string()));
-        self.emit_bytecode(ByteCode::DefineGlabal(index));
+        if self.current == 0 {
+            let name = name.raw.as_str();
+            let index = self.add_constant(Value::String(name.to_string()));
+            self.emit_bytecode(ByteCode::DefineGlabal(index));
+        } else {
+            self.current().incr_value_count();
+        }
         Ok(())
     }
 
@@ -190,19 +200,23 @@ impl Emitter {
         else_branch: &Stmt,
     ) -> Result<(), Error> {
         self.emit_expr(condition)?;
-        // let then_jmp = self.bytecodes.len();
-        // self.bytecodes.push(ByteCode::JE(0));
-        // self.bytecodes.push(ByteCode::Pop);
+        let then_jmp = self.current().chunk().codes.len();
+        self.emit_bytecode(ByteCode::JumpIfFalse(0));
+        self.emit_bytecode(ByteCode::Pop);
 
         self.emit_stmt(then_branch)?;
-        // let else_jmp = self.bytecodes.len();
-        // self.bytecodes.push(ByteCode::Jump(0));
 
-        // self.bytecodes[then_jmp] = ByteCode::JE(self.bytecodes.len());
-        // self.bytecodes.push(ByteCode::Pop);
+        let else_jmp = self.current().chunk().codes.len();
+        self.emit_bytecode(ByteCode::Jump(0));
+
+        self.current().chunk_mut().codes[then_jmp] =
+            ByteCode::JumpIfFalse(self.current().chunk().codes.len());
+        self.emit_bytecode(ByteCode::Pop);
 
         self.emit_stmt(else_branch)?;
-        // self.bytecodes[else_jmp] = ByteCode::Jump(self.bytecodes.len());
+
+        self.current().chunk_mut().codes[else_jmp] =
+            ByteCode::Jump(self.current().chunk().codes.len());
         Ok(())
     }
 
@@ -256,13 +270,14 @@ impl Emitter {
     }
 
     fn emit_variable(&mut self, name: &Token) -> Result<(), Error> {
-        let index = self.add_constant(Value::String(name.raw.clone()));
         if self.current > 0 {
+            let index = self.current().value_count;
             self.emit_bytecode(ByteCode::GetLocal(index));
+            self.current().incr_value_count();
         } else {
+            let index = self.add_constant(Value::String(name.raw.clone()));
             self.emit_bytecode(ByteCode::GetGlobal(index));
         }
-        self.current().incr_value_count();
         Ok(())
     }
 
@@ -271,8 +286,6 @@ impl Emitter {
     }
 
     fn emit_call(&mut self, callee: &Expr, _paren: &Token, args: &Vec<Expr>) -> Result<(), Error> {
-        // println!("emit call, callee:{:?}, args: {:?}", callee, args);
-
         self.emit_expr(callee)?;
         for expr in args {
             self.emit_expr(expr)?;
@@ -288,8 +301,7 @@ impl Emitter {
         self.functions.get_mut(current).unwrap()
     }
 
-    fn begin_scope(&mut self, name: &str) {
-        self.functions.push(Function::new(name.to_string()));
+    fn begin_scope(&mut self) {
         self.current += 1;
     }
 
